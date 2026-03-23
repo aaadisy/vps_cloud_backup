@@ -1,0 +1,34 @@
+
+name: Deploy ID-TRAUM Admin Panel
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: 138.252.200.180
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            cd /var/www/vps_cloud_backup
+            git pull origin main
+            
+            # Backend Setup
+            cd backend
+            npm install
+            pm2 restart traum_backend || pm2 start server.js --name traum_backend
+            
+            # Frontend Setup
+            cd ../frontend
+            npm install
+            npm run build
+            cp -r dist/* /var/www/html/backup/
