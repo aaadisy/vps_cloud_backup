@@ -2,7 +2,8 @@
 # ID-TRAUM VPS DEPLOYMENT SCRIPT (ALMALINUX)
 
 # 1. System Updates & Essentials
-echo "--- Updating System ---"
+echo "--- Enabling EPEL Repo & Updating System ---"
+dnf install epel-release -y
 dnf update -y
 dnf install -y git curl nginx certbot python3-certbot-nginx
 
