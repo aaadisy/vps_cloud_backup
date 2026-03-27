@@ -219,12 +219,13 @@ const AdminDevices = () => {
     }
   };
 
-  const triggerBackup = async (device) => {
+  const sendCommand = async (device, command) => {
     try {
-      const { data } = await api.post(`/admin/trigger-backup/${device.id}`);
+      const { data } = await api.post(`/admin/device/${device.id}/command`, { command });
       alert(data.message);
+      fetchDevices();
     } catch (err) {
-      alert('Trigger failed. Check if server is reachable.');
+      alert('Command failed. Check network.');
     }
   };
 
@@ -274,18 +275,31 @@ const AdminDevices = () => {
                      </span>
                   </td>
                   <td>
-                    {new Date() - new Date(dev.last_seen) < 300000 ? (
-                      <span className="status-badge status-online"><CheckCircle2 size={14} /> ONLINE</span>
+                    {new Date() - new Date(dev.last_seen) < 60000 ? (
+                      <span className="status-badge status-online">
+                        <CheckCircle2 size={14} /> ONLINE
+                      </span>
                     ) : (
-                      <span className="status-badge status-offline"><Clock size={14} /> OFFLINE</span>
+                      <span className="status-badge status-offline">
+                        <Clock size={14} /> OFFLINE
+                      </span>
                     )}
+                    <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px' }}>
+                       State: <span style={{ fontWeight: 700 }}>{dev.last_backup_status || 'IDLE'}</span>
+                    </div>
                   </td>
                   <td style={{ fontSize: '0.85rem' }}>{new Date(dev.last_seen).toLocaleString()}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => triggerBackup(dev)} title="Run Backup Now" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#28a745' }}><Play size={16} fill="#28a745" /></button>
+                      <button onClick={() => sendCommand(dev, 'START')} title="Run Backup" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#28a745' }}><Play size={16} fill="#28a745" /></button>
+                      
+                      {dev.last_backup_status === 'BUSY' ? (
+                        <button onClick={() => sendCommand(dev, 'PAUSE')} title="Pause" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ffc107' }}>PAUSE</button>
+                      ) : dev.last_backup_status === 'PAUSED' ? (
+                        <button onClick={() => sendCommand(dev, 'RESUME')} title="Resume" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#17a2b8' }}>RESUME</button>
+                      ) : null}
+
                       <button onClick={() => { setSelectedDevice(dev); setShowConfigModal(true); }} title="Remote Config" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0072bc' }}><Settings size={16} /></button>
-                      <button title="View Backups" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}><ExternalLink size={16} /></button>
                       <button onClick={() => handleDelete(dev.id)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc3545' }}><Trash2 size={16} /></button>
                     </div>
                   </td>

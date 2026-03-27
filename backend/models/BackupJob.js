@@ -30,8 +30,20 @@ const BackupJob = sequelize.define('BackupJob', {
     defaultValue: 'real-time'
   },
   status: {
-    type: DataTypes.ENUM('running', 'completed', 'failed'),
+    type: DataTypes.ENUM('running', 'completed', 'failed', 'paused', 'cancelled'),
     defaultValue: 'running'
+  },
+  progress_percent: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  total_size: {
+    type: DataTypes.BIGINT,
+    defaultValue: 0
+  },
+  total_files: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
   started_at: {
     type: DataTypes.DATE,
@@ -41,7 +53,9 @@ const BackupJob = sequelize.define('BackupJob', {
     type: DataTypes.DATE
   }
 }, {
-  timestamps: false
+  timestamps: true,
+  createdAt: 'started_at',
+  updatedAt: 'updated_at'
 });
 
 BackupJob.belongsTo(User, { foreignKey: 'user_id' });

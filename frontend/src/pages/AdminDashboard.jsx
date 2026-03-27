@@ -87,7 +87,8 @@ const AdminDashboard = () => {
           users: users.data.length,
           devices: devices.data.length,
           backups: backups.data.length,
-          storage: storage.data.total_bytes,
+          storage: storage.data.used_bytes,
+          total: storage.data.total_bytes,
           logs: logs.data.slice(0, 5)
         });
       } catch (err) {
@@ -135,8 +136,8 @@ const AdminDashboard = () => {
 
       <div className="main-content">
         <div className="stats-grid">
-          <StorageBar title="Primary Storage Usage" usedBytes={stats.storage} totalBytes={5 * (1024**4)} />
-          <StorageBar title="Dedicated Cache" usedBytes={stats.storage * 0.2} totalBytes={stats.storage * 0.5} color="#17a2b8" />
+          <StorageBar title="Primary Storage Usage" usedBytes={stats.storage} totalBytes={stats.total || 107374182400} />
+          <StorageBar title="Daily Activity Surge" usedBytes={stats.storage * 0.05} totalBytes={stats.total * 0.1 || 10737418240} color="#17a2b8" />
           <StorageBar title="Network Bandwidth" usedBytes={12000000} totalBytes={100000000} color="#28a745" />
         </div>
 

@@ -24,7 +24,9 @@ npm install -g pm2
 
 # 4. Folder Setup
 mkdir -p /var/www/vps_cloud_backup
+mkdir -p /var/www/vps_cloud_backup/backups
 chown -R root:root /var/www/vps_cloud_backup
+chmod -R 755 /var/www/vps_cloud_backup/backups
 
 # 5. Nginx Config for backup.modulesfarm.com
 echo "--- Configuring Nginx ---"

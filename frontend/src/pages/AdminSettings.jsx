@@ -37,6 +37,55 @@ const AdminSettings = () => {
       <div className="main-content">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
           
+          <div className="card" style={{ gridColumn: 'span 2' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Server size={18} color="#0072bc" /> Backup Storage Nodes (VPS)
+            </h3>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', background: '#f8f9fa', padding: '1rem', borderRadius: '4px' }}>
+               <input className="search-input" placeholder="VPS Label" id="vps-name" style={{ flex: 1, paddingLeft: '1rem' }} />
+               <input className="search-input" placeholder="IP Address" id="vps-ip" style={{ flex: 1, paddingLeft: '1rem' }} />
+               <input className="search-input" placeholder="User" id="vps-user" style={{ width: '80px', paddingLeft: '1rem' }} defaultValue="root" />
+               <input className="search-input" type="password" placeholder="Password" id="vps-pass" style={{ flex: 1, paddingLeft: '1rem' }} />
+               <button className="btn btn-primary" onClick={async () => {
+                  const name = document.getElementById('vps-name').value;
+                  const ip = document.getElementById('vps-ip').value;
+                  const user = document.getElementById('vps-user').value;
+                  const pass = document.getElementById('vps-pass').value;
+                  if(!name || !ip || !pass) return alert('Fill all details');
+                  try {
+                    await api.post('/admin/vps', { vps_name: name, ip_address: ip, username: user, password: pass, total_storage: 500000000000 });
+                    alert('VPS Added Successfully');
+                    window.location.reload();
+                  } catch(e) { alert('Error adding VPS'); }
+               }}>+ Add VPS</button>
+            </div>
+            
+            <div className="table-container" style={{ margin: 0, border: '1px solid #eee' }}>
+               <table className="id-table">
+                  <thead>
+                    <tr>
+                      <th>VPS NODE</th>
+                      <th>IP ADDRESS</th>
+                      <th>STORAGE</th>
+                      <th>STATUS</th>
+                      <th>HEALTH</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Main Backup Server</td>
+                      <td>138.252.200.180</td>
+                      <td>
+                        <div style={{ fontSize: '0.75rem' }}>1.2 TB / 5 TB</div>
+                        <div className="progress-bar" style={{ height: '4px' }}><div className="progress-fill" style={{ width: '24%' }}></div></div>
+                      </td>
+                      <td><span className="status-badge status-online">ACTIVE</span></td>
+                      <td>100%</td>
+                    </tr>
+                  </tbody>
+               </table>
+            </div>
+          </div>
           <div className="card">
             <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Globe size={18} color="#0072bc" /> General Settings

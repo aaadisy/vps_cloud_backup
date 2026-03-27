@@ -23,6 +23,14 @@ const ActivityLog = sequelize.define('ActivityLog', {
   description: {
     type: DataTypes.TEXT
   },
+  device_id: {
+    type: DataTypes.UUID,
+    allowNull: true
+  },
+  metadata: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
   timestamp: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW

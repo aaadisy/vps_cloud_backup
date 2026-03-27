@@ -99,9 +99,14 @@ const AdminBackups = () => {
                         <XCircle size={14} /> Failed
                       </span>
                     ) : (
-                      <span className="status-badge status-pending">
-                        <Clock size={14} /> In Progress
-                      </span>
+                      <div className="status-badge status-pending" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={14} /> In Progress
+                        </div>
+                        <div className="progress-bar" style={{ height: '4px', width: '80px' }}>
+                          <div className="progress-fill" style={{ width: `${job.progress_percent || 0}%` }}></div>
+                        </div>
+                      </div>
                     )}
                   </td>
                   <td style={{ fontSize: '0.85rem', color: '#666' }}>{job.completed_at ? new Date(job.completed_at).toLocaleString() : 'Running...'}</td>

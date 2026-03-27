@@ -12,6 +12,14 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const backupRoutes = require('./routes/backupRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
+// Load all models for sync
+require('./models/User');
+require('./models/Device');
+require('./models/BackupJob');
+require('./models/BackupFile');
+require('./models/Log');
+require('./models/VPS');
+
 const app = express();
 
 // Middleware
@@ -38,8 +46,8 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // Sync database
-    await sequelize.sync({ force: false }); 
+    // Sync database: automatically updates tables with new columns
+    await sequelize.sync({ alter: true }); 
     console.log('Database synced');
     
     app.listen(PORT, () => {

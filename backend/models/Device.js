@@ -41,6 +41,18 @@ const Device = sequelize.define('Device', {
     type: DataTypes.STRING,
     allowNull: true,
     defaultValue: '0 0 * * *' // Default daily at midnight
+  },
+  remote_command: {
+    type: DataTypes.ENUM('NONE', 'START', 'PAUSE', 'RESUME', 'CANCEL', 'RESTORE'),
+    defaultValue: 'NONE'
+  },
+  last_backup_status: {
+    type: DataTypes.STRING,
+    defaultValue: 'IDLE'
+  },
+  restore_config: {
+    type: DataTypes.JSON, // { file_id, target_dir, status }
+    allowNull: true
   }
 }, {
   timestamps: true,

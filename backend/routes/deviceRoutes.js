@@ -31,13 +31,33 @@ router.post('/register', protect, async (req, res) => {
 });
 
 router.post('/heartbeat', protect, async (req, res) => {
-  const { device_uuid } = req.body;
+  const { device_uuid, current_status } = req.body;
   try {
     const device = await Device.findOne({ where: { device_uuid } });
     if (!device) return res.status(404).json({ message: 'Device not found' });
+    
     device.last_seen = new Date();
+    if (current_status) {
+      device.last_backup_status = current_status;
+    }
     await device.save();
-    res.json({ message: 'Heartbeat received' });
+
+    // Fetch command and config
+    const command = device.remote_command;
+    const config = {
+      backup_paths: device.backup_paths ? JSON.parse(device.backup_paths) : [],
+      cron_schedule: device.cron_schedule,
+      restore_config: device.restore_config
+    };
+
+    // If command was START/PAUSE etc, we might want to clear it after sending
+    // but for now let's keep it until the agent reports status change
+    
+    res.json({ 
+      message: 'Heartbeat received',
+      command: command,
+      config: config
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -6,6 +6,8 @@ const Device = require('../models/Device');
 const BackupJob = require('../models/BackupJob');
 const ActivityLog = require('../models/Log');
 const BackupFile = require('../models/BackupFile');
+const StorageVPS = require('../models/VPS');
+const { getDiskStats } = require('../utils/storageUtils');
 const { sequelize } = require('../config/database');
 
 // Admin only routes
@@ -76,38 +78,88 @@ router.put('/device/:id', async (req, res) => {
   }
 });
 
-router.post('/trigger-restore/:id', async (req, res) => {
+router.post('/device/:id/restore', async (req, res) => {
   try {
-    const job = await BackupJob.findByPk(req.params.id, { include: [Device] });
-    if (!job) return res.status(404).json({ message: 'Backup job not found' });
+    const { file_id, target_dir } = req.body;
+    const device = await Device.findByPk(req.params.id);
+    if (!device) return res.status(404).json({ message: 'Device not found' });
     
-    // Log the restore event
+    // Set restore configuration
+    device.remote_command = 'RESTORE';
+    device.restore_config = {
+      file_id,
+      target_dir: target_dir || 'C:\\Restored_Files',
+      status: 'pending'
+    };
+    
+    await device.save();
+    
     await ActivityLog.create({
       user_id: req.user.id,
-      action: 'MANUAL_RESTORE_TRIGGER',
-      description: `Manual restore triggered for job ${job.id} on device: ${job.Device?.device_name}`
+      device_id: device.id,
+      action: 'RESTORE_QUEUED',
+      description: `Restore queued for file ${file_id} to ${target_dir || 'default directory'}`
     });
 
-    res.json({ message: `Restore process initiated for job ${job.id}` });
+    res.json({ message: 'Restore command queued successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.post('/trigger-backup/:id', async (req, res) => {
+router.post('/device/:id/command', async (req, res) => {
   try {
+    const { command } = req.body;
     const device = await Device.findByPk(req.params.id);
     if (!device) return res.status(404).json({ message: 'Device not found' });
     
-    // Log the manual trigger event
+    device.remote_command = command;
+    await device.save();
+    
     await ActivityLog.create({
       user_id: req.user.id,
-      action: 'MANUAL_BACKUP_TRIGGER',
-      description: `Manual backup triggered for device: ${device.device_name}`
+      action: `REMOTE_COMMAND_${command}`,
+      description: `Sent ${command} command to device: ${device.device_name}`
     });
 
-    // In a real system, you'd send a message (e.g., via WebSocket or MQTT) to the agent here.
-    res.json({ message: `Backup instruction queued for ${device.device_name}` });
+    res.json({ message: `Command ${command} delivered to device mailbox` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// VPS Management
+router.get('/vps', async (req, res) => {
+  const vpsList = await StorageVPS.findAll();
+  res.json(vpsList);
+});
+
+router.post('/vps', async (req, res) => {
+  try {
+    const vps = await StorageVPS.create(req.body);
+    res.status(201).json(vps);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+router.put('/vps/:id', async (req, res) => {
+  try {
+    const vps = await StorageVPS.findByPk(req.params.id);
+    if (!vps) return res.status(404).json({ message: 'VPS not found' });
+    await vps.update(req.body);
+    res.json(vps);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+router.delete('/vps/:id', async (req, res) => {
+  try {
+    const vps = await StorageVPS.findByPk(req.params.id);
+    if (!vps) return res.status(404).json({ message: 'VPS not found' });
+    await vps.destroy();
+    res.json({ message: 'VPS removed successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -127,8 +179,17 @@ router.get('/reports/usage', async (req, res) => {
 
 router.get('/storage-usage', async (req, res) => {
   try {
-    const totalSize = await BackupFile.sum('file_size');
-    res.json({ total_bytes: totalSize || 0 });
+    const stats = await getDiskStats();
+    const backupSize = await BackupFile.sum('file_size'); // From database
+    
+    // Merge OS stats with database stats
+    res.json({ 
+       total_bytes: stats?.total || 0,
+       free_bytes: stats?.free || 0,
+       used_bytes: stats?.used || 0,
+       backup_metadata_size: backupSize || 0,
+       percent_used: stats?.percentUsed || 0
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
