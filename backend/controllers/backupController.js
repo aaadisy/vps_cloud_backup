@@ -101,7 +101,7 @@ const getDeviceFiles = async (req, res) => {
 
     const files = await BackupFile.findAll({
       where: { device_id: targetId },
-      order: [['createdAt', 'DESC']]
+      order: [['created_at', 'DESC']]
     });
     res.json(files);
   } catch (error) {
