@@ -29,7 +29,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='ID-TRAUM-Backup',
+    name='ID-TRAUM-Backup-v2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -33,6 +33,20 @@ class BackupAPIClient:
             print(f"Registration Error: {e}")
             return False
 
+    def start_backup(self, backup_type="manual"):
+        try:
+            payload = {
+                "device_uuid": self.device_uuid,
+                "backup_type": backup_type
+            }
+            res = requests.post(f"{self.base_url}/backup/start", json=payload, headers=self.headers)
+            if res.status_code in [200, 201]:
+                return res.json()
+            return None
+        except Exception as e:
+            print(f"Start Backup Error: {e}")
+            return None
+
     def heartbeat(self, status="IDLE"):
         try:
             payload = {
@@ -46,6 +60,20 @@ class BackupAPIClient:
         except Exception as e:
             print(f"Heartbeat Error: {e}")
             return None
+
+    def save_file_metadata(self, job_id, file_name, original_path, vps_path, size):
+        try:
+            payload = {
+                "backup_job_id": job_id,
+                "file_name": file_name,
+                "original_path": original_path,
+                "vps_path": vps_path,
+                "file_size": size
+            }
+            res = requests.post(f"{self.base_url}/backup/file-metadata", json=payload, headers=self.headers)
+            return res.status_code in [200, 201]
+        except Exception as e:
+            return False
 
     def upload_file(self, file_path, sub_path):
         try:

@@ -7,6 +7,7 @@ import platform
 import os
 import json
 import uuid
+import sys
 
 # If customtkinter is available, use it for IDrive premium look
 try:
@@ -19,12 +20,28 @@ except ImportError:
 from api_client import BackupAPIClient
 from backup_engine import BackupEngine
 
+import logging
+import pystray
+from PIL import Image, ImageDraw
+import winreg # For Windows Auto-start
+
+# Setup Logging in APPDATA to ensure write permissions
+log_dir = os.path.join(os.environ.get('APPDATA'), 'IDTraumBackup')
+if not os.path.exists(log_dir): os.makedirs(log_dir)
+log_path = os.path.join(log_dir, 'agent.log')
+
+logging.basicConfig(
+    filename=log_path,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
 # Main Application Class
 class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("ID-TRAUM VPS Cloud Backup - Agent")
+        self.title("ID-TRAUM VPS Cloud Backup")
         self.geometry("800x600")
         
         # 1. Config & State
@@ -33,19 +50,67 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         self.engine = BackupEngine(self.api)
         self.is_connected = False
         self.current_job = "IDLE"
-        self.active_backup_paths = ["C:\\Users\\Desktop", "D:\\Data"] # Dummy default
+        self.active_backup_paths = ["C:\\Users\\Desktop", "C:\\Users\\Documents"]
         
         # 2. UI Layout
         self._setup_ui()
+        self._add_to_startup() # Set auto-start
         
-        # 3. Start Heartbeat Thread
+        # 3. Handle Window Close
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # 4. Start Heartbeat Thread
         self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self.heartbeat_thread.start()
+        
+        # 5. Setup Tray Icon
+        self._setup_tray()
+
+    def _add_to_startup(self):
+        try:
+            # Get current executable path (handles both script and frozen exe)
+            exe_path = sys.executable if getattr(sys, 'frozen', False) else f'"{os.path.realpath(__file__)}"'
+            
+            key = winreg.HKEY_CURRENT_USER
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(key, key_path, 0, winreg.KEY_SET_VALUE) as reg_key:
+                winreg.SetValueEx(reg_key, "IDTraumBackup", 0, winreg.REG_SZ, f'"{exe_path}"')
+            logging.info(f"Auto-start registered: {exe_path}")
+        except Exception as e:
+            logging.error(f"Failed to set auto-start: {e}")
+
+    def _setup_tray(self):
+        # Create a simple icon for the tray
+        icon_img = Image.new('RGB', (64, 64), color=(0, 114, 188))
+        d = ImageDraw.Draw(icon_img)
+        d.text((10, 10), "ID", fill=(255, 255, 255))
+        
+        menu = pystray.Menu(
+            pystray.MenuItem("Open Dashboard", self._show_window),
+            pystray.MenuItem("Exit Completely", self._exit_app)
+        )
+        self.icon = pystray.Icon("ID-TRAUM", icon_img, "ID-TRAUM Backup", menu)
+        threading.Thread(target=self.icon.run, daemon=True).start()
+
+    def _on_closing(self):
+        self.withdraw() # Hide window but keep app running
+        logging.info("Window minimized to tray")
+
+    def _show_window(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def _exit_app(self):
+        self.icon.stop()
+        self.destroy()
+        os._exit(0)
 
     def _setup_ui(self):
-        # Sidebar for navigation (Like IDrive)
-        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0) if ctk else tk.Frame(self, bg="#f0f0f0", width=200)
+        # Sidebar for navigation
+        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0) if ctk else tk.Frame(self, bg="#f0f0f0")
         self.sidebar_frame.pack(side="left", fill="y")
+        # Rest of implementation ...
         
         title_label = ctk.CTkLabel(self.sidebar_frame, text="ID-TRAUM", font=("Arial", 20, "bold"), text_color="#0072bc") if ctk else tk.Label(self.sidebar_frame, text="ID-TRAUM")
         title_label.pack(pady=20, padx=20)
@@ -141,19 +206,27 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
 
     def _backup_task(self):
         try:
-            self.progress_label.configure(text="Scanning files for backup...")
-            # Simulate scanning...
-            time.sleep(2)
-            
-            # Start actual engine
+            logging.info("Starting manual backup task...")
+            self.progress_label.configure(text="Connecting to Storage node...")
             self.engine.start_backup(self.active_backup_paths)
             
-            # Update UI periodically (Should use queue or after for safety)
-            # For brevity:
+            # Simple UI update loop
+            while self.engine.is_running:
+                stats = self.engine.stats
+                processed = stats.get('processed_files', 0)
+                size_mb = stats.get('processed_size', 0) / (1024*1024)
+                self.progress_label.configure(text=f"Progress: {processed} files uploaded ({size_mb:.1f} MB)")
+                
+                # Check if it stopped or finished
+                if not self.engine.is_running: break
+                time.sleep(1)
+            
             self.progress_label.configure(text="Backup Completed successfully!")
             self.progress_bar.set(1)
             self.current_job = "IDLE"
+            logging.info("Manual backup task finished.")
         except Exception as e:
+            logging.error(f"Backup Error: {e}")
             self.progress_label.configure(text=f"Error: {str(e)}")
             self.current_job = "IDLE"
 

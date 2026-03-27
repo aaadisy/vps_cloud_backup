@@ -4,7 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const Device = require('../models/Device');
 const ActivityLog = require('../models/Log');
 
-router.post('/register', protect, async (req, res) => {
+router.post('/register', async (req, res) => {
   const { device_name, device_uuid, os_type } = req.body;
   try {
     let device = await Device.findOne({ where: { device_uuid } });
@@ -12,19 +12,26 @@ router.post('/register', protect, async (req, res) => {
       device.last_seen = new Date();
       await device.save();
     } else {
+      // Find the first user (Admin) to assign the device to
+      const User = require('../models/User');
+      const adminUser = await User.findOne();
+      if (!adminUser) return res.status(500).json({ message: 'No admin user configured on server' });
+
       device = await Device.create({
-        user_id: req.user.id,
+        user_id: adminUser.id,
         device_name,
         device_uuid,
         os_type
       });
       await ActivityLog.create({
-        user_id: req.user.id,
+        user_id: adminUser.id,
         action: 'DEVICE_REGISTERED',
         description: `New device registered: ${device_name} (${os_type})`
       });
     }
-    res.status(201).json(device);
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign({ id: device.user_id }, process.env.JWT_SECRET, { expiresIn: '365d' });
+    res.status(201).json({ device, token });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -137,8 +137,18 @@ const AdminDashboard = () => {
       <div className="main-content">
         <div className="stats-grid">
           <StorageBar title="Primary Storage Usage" usedBytes={stats.storage} totalBytes={stats.total || 107374182400} />
-          <StorageBar title="Daily Activity Surge" usedBytes={stats.storage * 0.05} totalBytes={stats.total * 0.1 || 10737418240} color="#17a2b8" />
-          <StorageBar title="Network Bandwidth" usedBytes={12000000} totalBytes={100000000} color="#28a745" />
+          <StorageBar 
+            title="Daily Activity (Backups)" 
+            usedBytes={stats.backups * 1024 * 1024 * 50} // Rough estimate of job size
+            totalBytes={stats.total * 0.1 || 10737418240} 
+            color="#17a2b8" 
+          />
+          <StorageBar 
+            title="Registered Protection Capacity" 
+            usedBytes={stats.devices * 50 * 1024 * 1024 * 1024} // 50GB per device quota estimate
+            totalBytes={stats.total || 107374182400} 
+            color="#28a745" 
+          />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
