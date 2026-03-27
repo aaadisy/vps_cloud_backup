@@ -209,14 +209,22 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             
             # Send heartbeat
             if self.is_connected:
-                # Detect drives to report to Admin
-                drives = []
+                # Detect drives and common folders to report to Admin
+                nodes = []
                 if os.name == 'nt':
                     import string
-                    drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+                    # Drives
+                    nodes = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+                    # Common Folders
+                    user_profile = os.environ.get('USERPROFILE')
+                    if user_profile:
+                        for folder in ['Desktop', 'Documents', 'Downloads']:
+                            p = os.path.join(user_profile, folder)
+                            if os.path.exists(p): nodes.append(p)
                 else:
-                    drives = ["/"]
-                drive_list = ",".join(drives)
+                    nodes = ["/"]
+                
+                drive_list = ",".join(nodes)
 
                 data = self.api.heartbeat(self.current_job, drive_list=drive_list)
                 if data:
