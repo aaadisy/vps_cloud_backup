@@ -51,8 +51,16 @@ router.post('/heartbeat', protect, async (req, res) => {
 
     // Fetch command and config
     const command = device.remote_command;
+    let backupPaths = [];
+    try {
+      backupPaths = device.backup_paths ? JSON.parse(device.backup_paths) : [];
+    } catch (e) {
+      // If it's not JSON, treat it as a single string or comma-separated
+      backupPaths = device.backup_paths ? device.backup_paths.split(',') : [];
+    }
+    
     const config = {
-      backup_paths: device.backup_paths ? JSON.parse(device.backup_paths) : [],
+      backup_paths: backupPaths,
       cron_schedule: device.cron_schedule,
       restore_config: device.restore_config
     };

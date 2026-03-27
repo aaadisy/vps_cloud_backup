@@ -24,10 +24,11 @@ import {
 import api from '../utils/api';
 import '../styles/admin.css';
 
-const StorageBar = ({ title, usedBytes, totalBytes = 5000000000, color = '#0072bc' }) => {
+const StorageBar = ({ title, usedBytes = 0, totalBytes = 1, color = '#0072bc' }) => {
+  const tBytes = totalBytes || 1; // Prevent division by zero
   const usedTB = (usedBytes / (1024 ** 4)).toFixed(2);
-  const totalTB = (totalBytes / (1024 ** 4)).toFixed(2);
-  const percent = Math.min((usedBytes / totalBytes) * 100, 100);
+  const totalTB = (tBytes / (1024 ** 4)).toFixed(2);
+  const percent = Math.min((usedBytes / tBytes) * 100, 100);
 
   return (
     <div className="card">
@@ -88,8 +89,8 @@ const AdminDashboard = () => {
           users: users.data.length,
           devices: devices.data.length,
           backups: backups.data.length,
-          storage: storage.data.used_bytes,
-          total: storage.data.total_bytes,
+          storage: storage.data.used_bytes || 0,
+          total: storage.data.total_bytes || 1073741824, // 1GB fallback
           logs: logs.data.slice(0, 5),
           userStorage: userStorage.data
         });
