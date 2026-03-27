@@ -218,6 +218,44 @@ router.delete('/device/:id', async (req, res) => {
   }
 });
 
+router.get('/stats/storage-by-user', async (req, res) => {
+  try {
+    const stats = await User.findAll({
+      attributes: ['name'],
+      include: [{
+        model: Device,
+        attributes: [],
+        include: [{
+          model: BackupJob,
+          attributes: [],
+          include: [{
+            model: BackupFile,
+            attributes: []
+          }]
+        }]
+      }],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(`(
+              SELECT COALESCE(SUM(bf.file_size), 0)
+              FROM BackupFiles AS bf
+              JOIN BackupJobs AS bj ON bf.backup_job_id = bj.id
+              JOIN Devices AS d ON bj.device_id = d.id
+              WHERE d.user_id = User.id
+            )`),
+            'total_storage_bytes'
+          ]
+        ]
+      },
+      group: ['User.id']
+    });
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.get('/activity-logs', async (req, res) => {
   const logs = await ActivityLog.findAll({ include: [User], order: [['timestamp', 'DESC']] });
   res.json(logs);

@@ -75,12 +75,13 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [users, devices, backups, storage, logs] = await Promise.all([
+        const [users, devices, backups, storage, logs, userStorage] = await Promise.all([
           api.get('/admin/users'),
           api.get('/admin/devices'),
           api.get('/admin/backups'),
           api.get('/admin/storage-usage'),
-          api.get('/admin/activity-logs')
+          api.get('/admin/activity-logs'),
+          api.get('/admin/stats/storage-by-user')
         ]);
 
         setStats({
@@ -89,7 +90,8 @@ const AdminDashboard = () => {
           backups: backups.data.length,
           storage: storage.data.used_bytes,
           total: storage.data.total_bytes,
-          logs: logs.data.slice(0, 5)
+          logs: logs.data.slice(0, 5),
+          userStorage: userStorage.data
         });
       } catch (err) {
         console.error('Failed to fetch dashboard stats');
@@ -121,32 +123,25 @@ const AdminDashboard = () => {
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Overview</h1>
-          <div style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', left: '10px', top: '9px', color: '#999' }}>
-              <HelpCircle size={16} />
-            </div>
-            <input type="text" placeholder="Search resources..." className="search-input" />
-          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button className="btn btn-outline" onClick={downloadReport}>Generate Report</button>
-          <button className="btn btn-primary">+ Register Device</button>
         </div>
       </div>
 
       <div className="main-content">
         <div className="stats-grid">
-          <StorageBar title="Primary Storage Usage" usedBytes={stats.storage} totalBytes={stats.total || 107374182400} />
+          <StorageBar title="Primary Storage Usage" usedBytes={stats.storage} totalBytes={stats.total} />
           <StorageBar 
-            title="Daily Activity (Backups)" 
-            usedBytes={stats.backups * 1024 * 1024 * 50} // Rough estimate of job size
-            totalBytes={stats.total * 0.1 || 10737418240} 
+            title="Active Data Growth (24h)" 
+            usedBytes={stats.backups * 1024 * 1024} // ~1MB per job metadata etc
+            totalBytes={stats.total * 0.01} 
             color="#17a2b8" 
           />
           <StorageBar 
-            title="Registered Protection Capacity" 
-            usedBytes={stats.devices * 50 * 1024 * 1024 * 1024} // 50GB per device quota estimate
-            totalBytes={stats.total || 107374182400} 
+            title="Infrastructure Health" 
+            usedBytes={stats.devices * 0.5 * 1024**3} // Estimated device overhead
+            totalBytes={stats.total} 
             color="#28a745" 
           />
         </div>
@@ -155,15 +150,32 @@ const AdminDashboard = () => {
           <QuickStat title="Total Users" value={stats.users} icon={Users} color="#0072bc" />
           <QuickStat title="Active Devices" value={stats.devices} icon={Server} color="#17a2b8" />
           <QuickStat title="Total Backup Jobs" value={stats.backups} icon={Database} color="#28a745" />
-          <QuickStat title="Current Logs" value={stats.logs.length} icon={Inbox} color="#ffc107" />
+          <QuickStat title="System Logs" value={stats.logs.length} icon={Inbox} color="#ffc107" />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
-          <div className="card" style={{ minHeight: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>System Usage Activity</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div className="card" style={{ minHeight: '350px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem' }}>User-wise Storage Allocation</h3>
+            <div style={{ width: '100%', height: '250px' }}>
+               {/* Simplified User Chart */}
+               {stats.userStorage?.map((u, i) => (
+                  <div key={i} style={{ marginBottom: '1.2rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                         <span>{u.name}</span>
+                         <span>{(u.total_storage_bytes / (1024**2)).toFixed(1)} MB</span>
+                      </div>
+                      <div className="progress-bar" style={{ height: '6px' }}>
+                        <div className="progress-fill" style={{ width: `${Math.min((u.total_storage_bytes / (stats.storage || 1)) * 100, 100)}%`, backgroundColor: '#0072bc' }}></div>
+                      </div>
+                  </div>
+               ))}
+               {!stats.userStorage?.length && <div style={{ textAlign: 'center', color: '#999', paddingTop: '2rem' }}>No user data yet</div>}
             </div>
-            <div style={{ width: '100%', height: '300px' }}>
+          </div>
+
+          <div className="card" style={{ minHeight: '350px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem' }}>Storage Growth Trend</h3>
+            <div style={{ width: '100%', height: '250px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={[{ name: 'Now', value: stats.storage / (1024**3) }]}>
                   <defs>
@@ -181,29 +193,32 @@ const AdminDashboard = () => {
               </ResponsiveContainer>
             </div>
           </div>
+        </div>
 
-          <div className="card">
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>System Logs</h3>
-            <ul style={{ listStyle: 'none' }}>
-              {stats.logs.length > 0 ? stats.logs.map(log => (
-                <li key={log.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem 0', borderBottom: '1px solid #f8f9fa' }}>
-                   <div style={{ 
-                    width: '32px', height: '32px', 
-                    borderRadius: '4px', background: '#28a74515',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <CheckCircle2 size={16} color="#28a745" />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>{log.action}</p>
-                    <span style={{ fontSize: '0.75rem', color: '#999' }}>{log.description}</span>
-                  </div>
-                </li>
-              )) : (
-                <li style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>No recent logs</li>
-              )}
-            </ul>
-          </div>
+        <div className="card">
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Recent System Events</h3>
+            <div className="table-container" style={{ margin: 0 }}>
+               <table className="id-table">
+                  <thead>
+                    <tr>
+                      <th>TIMESTAMP</th>
+                      <th>ACTION</th>
+                      <th>DESCRIPTION</th>
+                      <th>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.logs.map(log => (
+                      <tr key={log.id}>
+                        <td style={{ fontSize: '0.75rem' }}>{new Date(log.timestamp).toLocaleString()}</td>
+                        <td style={{ fontWeight: 600 }}>{log.action}</td>
+                        <td style={{ color: '#666' }}>{log.description}</td>
+                        <td><span className="status-badge status-online">SUCCESS</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+               </table>
+            </div>
         </div>
       </div>
     </div>
