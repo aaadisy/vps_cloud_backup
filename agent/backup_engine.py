@@ -45,21 +45,23 @@ class BackupEngine:
         # Immediate upload on change
         try:
             if not self.current_job_id:
-                # Create a session-less or background job if needed
-                # For now let's just upload it directly
-                pass 
+                # Start a persistent SYNC job for real-time
+                job_res = self.api_client.start_backup("sync_realtime")
+                if job_res:
+                    self.current_job_id = job_res.get('id')
+                    logging.info(f"Persistent Sync Job Started: {self.current_job_id}")
             
+            if not os.path.exists(file_path): return
+
             rel_path = os.path.relpath(os.path.dirname(file_path), root_path)
             file_name = os.path.basename(file_path)
             file_size = os.path.getsize(file_path)
             
             if self.api_client.upload_file(file_path, rel_path):
-                 # We'll use a generic job ID if available or just save metadata
-                 # Let's start a generic "Real-time Sync" job on server
                  self.api_client.save_file_metadata(self.current_job_id, file_name, file_path, rel_path, file_size)
                  self.stats["processed_files"] += 1
                  self.stats["processed_size"] += file_size
-                 logging.info(f"REAL-TIME SYNC: {file_name} updated.")
+                 logging.info(f"REAL-TIME SYNC: {file_name} successfully uploaded.")
         except Exception as e:
             logging.error(f"Sync error: {e}")
 
