@@ -110,14 +110,13 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         # Sidebar for navigation
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0) if ctk else tk.Frame(self, bg="#f0f0f0")
         self.sidebar_frame.pack(side="left", fill="y")
-        # Rest of implementation ...
         
         title_label = ctk.CTkLabel(self.sidebar_frame, text="ID-TRAUM", font=("Arial", 20, "bold"), text_color="#0072bc") if ctk else tk.Label(self.sidebar_frame, text="ID-TRAUM")
         title_label.pack(pady=20, padx=20)
         
         self.btn_dashboard = self._create_nav_btn("Dashboard")
         self.btn_backup = self._create_nav_btn("Backup")
-        self.btn_restore = self._create_nav_btn("Restore")
+        self.btn_logs = self._create_nav_btn("System Logs")
         self.btn_settings = self._create_nav_btn("Settings")
         
         # Main Content Area
@@ -144,19 +143,39 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         status_card = ctk.CTkFrame(self.content_frame, corner_radius=10, fg_color="#fff") if ctk else tk.Frame(self.content_frame)
         status_card.pack(fill="x", pady=20)
         
-        self.lbl_connection = ctk.CTkLabel(status_card, text="●  Connecting to VPS Console...", text_color="#ffc107") if ctk else tk.Label(status_card, text="Connecting...")
+        server_display = self.base_url.replace("https://", "").replace("/api", "")
+        self.lbl_connection = ctk.CTkLabel(status_card, text=f"●  Connected to node: {server_display}", text_color="#28a745") if ctk else tk.Label(status_card, text="Connected...")
         self.lbl_connection.pack(pady=15, padx=20, side="left")
         
         btn_start = ctk.CTkButton(status_card, text="Run Backup Now", command=self.run_manual_backup, fg_color="#0072bc") if ctk else tk.Button(status_card)
         btn_start.pack(pady=15, padx=20, side="right")
 
         # Progress Section
-        self.progress_label = ctk.CTkLabel(self.content_frame, text="Ready for backup", font=("Arial", 14)) if ctk else tk.Label(self.content_frame)
+        self.progress_label = ctk.CTkLabel(self.content_frame, text="Cloud protection active", font=("Arial", 14)) if ctk else tk.Label(self.content_frame)
         self.progress_label.pack(pady=10, anchor="w")
         
         self.progress_bar = ctk.CTkProgressBar(self.content_frame, width=500) if ctk else ttk.Progressbar(self.content_frame)
         self.progress_bar.pack(pady=10, fill="x")
         self.progress_bar.set(0)
+
+        # Recent Activity Logs (New Section)
+        log_header = ctk.CTkLabel(self.content_frame, text="Recent Activity (Cloud Logs)", font=("Arial", 16, "bold")) if ctk else tk.Label(self.content_frame)
+        log_header.pack(pady=(20, 10), anchor="w")
+        
+        self.log_textbox = ctk.CTkTextbox(self.content_frame, height=200, corner_radius=10, fg_color="#f8f9fa", text_color="#333") if ctk else tk.Text(self.content_frame)
+        self.log_textbox.pack(fill="both", expand=True)
+        self.log_textbox.insert("0.0", "Welcome to ID-TRAUM Cloud Backup Agent\nReady for operation...\n")
+        self.log_textbox.configure(state="disabled")
+
+    def _add_log(self, message):
+        timestamp = time.strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+        if hasattr(self, 'log_textbox'):
+            self.log_textbox.configure(state="normal")
+            self.log_textbox.insert("end", log_entry)
+            self.log_textbox.see("end")
+            self.log_textbox.configure(state="disabled")
+        logging.info(message)
 
     def _clear_content(self):
         for widget in self.content_frame.winfo_children():
@@ -170,8 +189,10 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
                 if success:
                     self.is_connected = True
                     self.lbl_connection.configure(text="●  Online & Protected", text_color="#28a745")
+                    self._add_log("System successfully registered with VPS Console")
                 else:
                     self.lbl_connection.configure(text="●  Offline: Auth Failed", text_color="#dc3545")
+                    self._add_log("ERROR: Connection failed to VPS Master Node")
             
             # Send heartbeat
             if self.is_connected:
@@ -206,28 +227,31 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
 
     def _backup_task(self):
         try:
-            logging.info("Starting manual backup task...")
+            self._add_log(f"Manual backup started at {self.base_url}")
             self.progress_label.configure(text="Connecting to Storage node...")
             self.engine.start_backup(self.active_backup_paths)
             
             # Simple UI update loop
+            last_count = 0
             while self.engine.is_running:
                 stats = self.engine.stats
                 processed = stats.get('processed_files', 0)
                 size_mb = stats.get('processed_size', 0) / (1024*1024)
-                self.progress_label.configure(text=f"Progress: {processed} files uploaded ({size_mb:.1f} MB)")
                 
-                # Check if it stopped or finished
+                if processed > last_count:
+                    self._add_log(f"Successfully uploaded: {processed} files ({size_mb:.1f} MB)")
+                    last_count = processed
+
+                self.progress_label.configure(text=f"Progress: {processed} files uploaded ({size_mb:.1f} MB)")
                 if not self.engine.is_running: break
                 time.sleep(1)
             
+            self._add_log(f"Backup session completed. Total: {last_count} files.")
             self.progress_label.configure(text="Backup Completed successfully!")
             self.progress_bar.set(1)
             self.current_job = "IDLE"
-            logging.info("Manual backup task finished.")
         except Exception as e:
-            logging.error(f"Backup Error: {e}")
-            self.progress_label.configure(text=f"Error: {str(e)}")
+            self._add_log(f"CRITICAL ERROR: {str(e)}")
             self.current_job = "IDLE"
 
     def run_restore(self, config):
