@@ -140,6 +140,27 @@ const DeviceConfigModal = ({ device, onClose, onSave }) => {
               onChange={e => setFormData({...formData, backup_paths: e.target.value})}
               placeholder='Add paths to watch in real-time...'
             />
+            {device.reported_drives && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <p style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.5rem' }}>Detected on Device (Click to Add):</p>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                   {device.reported_drives.split(',').map(drive => (
+                     <span 
+                       key={drive}
+                       onClick={() => {
+                          if (!formData.backup_paths.includes(drive)) {
+                            const newPaths = formData.backup_paths ? `${formData.backup_paths}\n${drive}` : drive;
+                            setFormData({...formData, backup_paths: newPaths});
+                          }
+                       }}
+                       style={{ fontSize: '0.65rem', background: '#f0f0f0', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ddd' }}
+                     >
+                       + {drive}
+                     </span>
+                   ))}
+                </div>
+              </div>
+            )}
             <p style={{ fontSize: '0.65rem', color: '#999', marginTop: '0.3rem' }}>* Files in these folders will sync automatically as they change.</p>
           </div>
           

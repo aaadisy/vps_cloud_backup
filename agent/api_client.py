@@ -47,11 +47,12 @@ class BackupAPIClient:
             print(f"Start Backup Error: {e}")
             return None
 
-    def heartbeat(self, status="IDLE"):
+    def heartbeat(self, status="IDLE", drive_list=None):
         try:
             payload = {
                 "device_uuid": self.device_uuid,
-                "current_status": status
+                "current_status": status,
+                "drive_list": drive_list
             }
             res = requests.post(f"{self.base_url}/device/heartbeat", json=payload, headers=self.headers)
             if res.status_code == 200:

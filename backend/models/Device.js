@@ -50,6 +50,10 @@ const Device = sequelize.define('Device', {
     type: DataTypes.STRING,
     defaultValue: 'IDLE'
   },
+  reported_drives: {
+    type: DataTypes.TEXT, // Comma-separated or JSON list of C:\, D:\, etc.
+    allowNull: true
+  },
   restore_config: {
     type: DataTypes.JSON, // { file_id, target_dir, status }
     allowNull: true

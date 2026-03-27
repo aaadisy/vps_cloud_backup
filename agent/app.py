@@ -209,7 +209,16 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             
             # Send heartbeat
             if self.is_connected:
-                data = self.api.heartbeat(self.current_job)
+                # Detect drives to report to Admin
+                drives = []
+                if os.name == 'nt':
+                    import string
+                    drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+                else:
+                    drives = ["/"]
+                drive_list = ",".join(drives)
+
+                data = self.api.heartbeat(self.current_job, drive_list=drive_list)
                 if data:
                     self._process_remote_command(data.get('command'), data.get('config'))
             

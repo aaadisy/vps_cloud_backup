@@ -38,15 +38,14 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/heartbeat', protect, async (req, res) => {
-  const { device_uuid, current_status } = req.body;
+  const { device_uuid, current_status, drive_list } = req.body;
   try {
     const device = await Device.findOne({ where: { device_uuid } });
     if (!device) return res.status(404).json({ message: 'Device not found' });
     
     device.last_seen = new Date();
-    if (current_status) {
-      device.last_backup_status = current_status;
-    }
+    if (current_status) device.last_backup_status = current_status;
+    if (drive_list) device.reported_drives = drive_list;
     await device.save();
 
     // Fetch command and config
