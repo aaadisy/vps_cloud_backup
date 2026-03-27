@@ -88,4 +88,16 @@ const getBackupHistory = async (req, res) => {
   }
 };
 
-module.exports = { startBackup, saveFileMetadata, completeBackup, getBackupHistory };
+const getDeviceFiles = async (req, res) => {
+  try {
+    const files = await BackupFile.findAll({
+      where: { device_id: req.params.device_id },
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { startBackup, saveFileMetadata, completeBackup, getBackupHistory, getDeviceFiles };

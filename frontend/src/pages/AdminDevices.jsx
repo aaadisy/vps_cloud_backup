@@ -19,11 +19,79 @@ import {
 import api from '../utils/api';
 import '../styles/admin.css';
 
+const FileExplorerModal = ({ device, onClose }) => {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const { data } = await api.get(`/admin/device/${device.id}/files`);
+        setFiles(data);
+      } catch (err) {
+        console.error('Failed to fetch files');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFiles();
+  }, [device.id]);
+
+  const triggerRestore = async (file) => {
+    const targetDir = window.prompt("Enter destination path on client PC:", "C:\\Restored_Files");
+    if (!targetDir) return;
+    try {
+      await api.post(`/admin/device/${device.id}/restore`, { 
+        file_id: file.id,
+        target_dir: targetDir
+      });
+      alert("Restore command queued to agent!");
+    } catch (e) { alert("Restore failed"); }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+       <div className="card" style={{ width: '80%', maxWidth: '800px', height: '600px', padding: '2rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Restore Explorer: {device.device_name}</h2>
+             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+             {loading ? <p>Scanning cloud storage...</p> : (
+               <table className="id-table">
+                  <thead>
+                    <tr>
+                      <th>FILE NAME</th>
+                      <th>UPLOADED</th>
+                      <th>SIZE</th>
+                      <th>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {files.map(f => (
+                       <tr key={f.id}>
+                          <td>{f.file_name || f.original_path.split('\\').pop()}</td>
+                          <td>{new Date(f.createdAt).toLocaleString()}</td>
+                          <td>{(f.file_size / 1024).toFixed(1)} KB</td>
+                          <td>
+                             <button className="btn btn-primary btn-sm" onClick={() => triggerRestore(f)}>RESTORE</button>
+                          </td>
+                       </tr>
+                    ))}
+                    {files.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center' }}>No backed up files found for this device.</td></tr>}
+                  </tbody>
+               </table>
+             )}
+          </div>
+       </div>
+    </div>
+  );
+}
+
 const DeviceConfigModal = ({ device, onClose, onSave }) => {
   const [formData, setFormData] = useState({ 
     device_name: device.device_name, 
-    backup_paths: device.backup_paths || 'C:\\Users\\', 
-    cron_schedule: device.cron_schedule || '0 0 * * *' 
+    backup_paths: device.backup_paths || 'C:\\Users\\'
   });
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +113,7 @@ const DeviceConfigModal = ({ device, onClose, onSave }) => {
       <div className="card" style={{ width: '450px', padding: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Device Configuration</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Real-time Sync Config</h2>
             <p style={{ fontSize: '0.75rem', color: '#666' }}>Remote control for {device.device_uuid}</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
@@ -62,33 +130,21 @@ const DeviceConfigModal = ({ device, onClose, onSave }) => {
           </div>
           <div>
             <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-               <HardDrive size={14} /> Selective Backup Paths (JSON/CSV)
+               <HardDrive size={14} /> Active Protection Paths (Auto-Sync)
             </label>
             <textarea 
               className="search-input" 
-              rows="3"
+              rows="5"
               style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.4rem', paddingTop: '0.5rem', resize: 'vertical' }}
               value={formData.backup_paths}
               onChange={e => setFormData({...formData, backup_paths: e.target.value})}
-              placeholder='["C:\\Data", "D:\\Apps"]'
+              placeholder='Add paths to watch in real-time...'
             />
-          </div>
-          <div>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-               <Calendar size={14} /> Cron Schedule
-            </label>
-            <input 
-              className="search-input" 
-              style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.4rem' }}
-              value={formData.cron_schedule}
-              onChange={e => setFormData({...formData, cron_schedule: e.target.value})}
-              placeholder="* * * * *"
-            />
-            <p style={{ fontSize: '0.65rem', color: '#999', marginTop: '0.3rem' }}>Format: MIN HOUR DOM MON DOW (e.g. "0 0 * * *" = Daily at Midnight)</p>
+            <p style={{ fontSize: '0.65rem', color: '#999', marginTop: '0.3rem' }}>* Files in these folders will sync automatically as they change.</p>
           </div>
           
           <button className="btn btn-primary" style={{ marginTop: '0.5rem', justifyContent: 'center' }} disabled={loading}>
-            {loading ? 'Propagating...' : 'Apply Remote Configuration'}
+            {loading ? 'Propagating...' : 'Update Sync Configuration'}
           </button>
         </form>
       </div>
@@ -191,6 +247,7 @@ const AdminDevices = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showExplorerModal, setShowExplorerModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
 
   const fetchDevices = async () => {
@@ -291,7 +348,9 @@ const AdminDevices = () => {
                   <td style={{ fontSize: '0.85rem' }}>{new Date(dev.last_seen).toLocaleString()}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => sendCommand(dev, 'START')} title="Run Backup" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#28a745' }}><Play size={16} fill="#28a745" /></button>
+                      <button onClick={() => { setSelectedDevice(dev); setShowExplorerModal(true); }} title="Restore Explorer" className="btn btn-outline btn-sm" style={{ padding: '0.2rem 0.6rem', gap: '4px' }}><ExternalLink size={14} /> EXPLORE</button>
+                      
+                      <button onClick={() => sendCommand(dev, 'START')} title="Run Manual Sync" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#28a745' }}><Play size={16} fill="#28a745" /></button>
                       
                       {dev.last_backup_status === 'BUSY' ? (
                         <button onClick={() => sendCommand(dev, 'PAUSE')} title="Pause" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ffc107' }}>PAUSE</button>
@@ -325,6 +384,13 @@ const AdminDevices = () => {
           device={selectedDevice}
           onClose={() => setShowConfigModal(false)} 
           onSave={() => { setShowConfigModal(false); fetchDevices(); }} 
+        />
+      )}
+
+      {showExplorerModal && (
+        <FileExplorerModal 
+          device={selectedDevice}
+          onClose={() => setShowExplorerModal(false)}
         />
       )}
     </div>

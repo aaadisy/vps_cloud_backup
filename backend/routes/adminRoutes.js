@@ -256,6 +256,11 @@ router.get('/stats/storage-by-user', async (req, res) => {
   }
 });
 
+router.get('/device/:device_id/files', async (req, res) => {
+  const { getDeviceFiles } = require('../controllers/backupController');
+  return getDeviceFiles(req, res);
+});
+
 router.get('/activity-logs', async (req, res) => {
   const logs = await ActivityLog.findAll({ include: [User], order: [['timestamp', 'DESC']] });
   res.json(logs);

@@ -217,8 +217,12 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
 
     def _process_remote_command(self, command, config):
         if config and config.get('backup_paths'):
-            self.active_backup_paths = config['backup_paths']
-            logging.info(f"Syncing backup paths from server: {self.active_backup_paths}")
+            new_paths = config['backup_paths']
+            if new_paths != self.active_backup_paths:
+                self.active_backup_paths = new_paths
+                logging.info(f"Paths updated: {self.active_backup_paths}")
+                # Start real-time sync automatically
+                self.engine.start_realtime_sync(self.active_backup_paths)
 
         if command == "START":
             self.run_manual_backup()
