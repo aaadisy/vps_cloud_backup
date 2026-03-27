@@ -25,6 +25,10 @@ const BackupFile = sequelize.define('BackupFile', {
       key: 'id'
     }
   },
+  file_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   file_path: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -39,13 +43,11 @@ const BackupFile = sequelize.define('BackupFile', {
   },
   checksum: {
     type: DataTypes.STRING
-  },
-  backup_time: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
   }
 }, {
-  timestamps: false
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 BackupFile.belongsTo(User, { foreignKey: 'user_id' });
