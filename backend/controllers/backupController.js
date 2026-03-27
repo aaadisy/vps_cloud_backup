@@ -90,8 +90,17 @@ const getBackupHistory = async (req, res) => {
 
 const getDeviceFiles = async (req, res) => {
   try {
+    const { device_id } = req.params;
+    let targetId = device_id;
+    
+    // Check if it's a UUID
+    if (device_id.length > 10) {
+      const device = await Device.findOne({ where: { device_uuid: device_id } });
+      if (device) targetId = device.id;
+    }
+
     const files = await BackupFile.findAll({
-      where: { device_id: req.params.device_id },
+      where: { device_id: targetId },
       order: [['createdAt', 'DESC']]
     });
     res.json(files);
