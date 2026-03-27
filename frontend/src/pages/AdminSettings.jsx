@@ -178,6 +178,41 @@ const AdminSettings = () => {
               </div>
             </div>
           </div>
+          <div className="card">
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={18} color="#ffc107" /> Security & 2FA
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Global 2FA Enforcement</div>
+                  <div style={{ fontSize: '0.75rem', color: '#666' }}>Require all admins to use biometric authentication</div>
+                </div>
+                <input type="checkbox" style={{ width: '18px', height: '18px' }} defaultChecked />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Audit Logging</div>
+                  <div style={{ fontSize: '0.75rem', color: '#666' }}>Record every API transaction in the database</div>
+                </div>
+                <input type="checkbox" style={{ width: '18px', height: '18px' }} defaultChecked />
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Server size={18} color="#dc3545" /> Maintenance Mode
+            </h3>
+            <div style={{ background: '#fff5f5', border: '1px dashed #feb2b2', padding: '1rem', borderRadius: '4px' }}>
+                 <p style={{ fontSize: '0.8rem', color: '#c53030', marginBottom: '1rem' }}>
+                    <b>DANGER:</b> Enabling maintenance mode will block all backup agents and end-user access immediately.
+                 </p>
+                 <button className="btn btn-primary" style={{ background: '#c53030', width: '100%', justifyContent: 'center' }}>
+                    ACTIVATE MAINTENANCE
+                 </button>
+            </div>
+          </div>
 
         </div>
       </div>
