@@ -116,8 +116,6 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         
         self.btn_dashboard = self._create_nav_btn("Dashboard")
         self.btn_backup = self._create_nav_btn("Backup")
-        self.btn_logs = self._create_nav_btn("System Logs")
-        self.btn_settings = self._create_nav_btn("Settings")
         
         # Main Content Area
         self.content_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent") if ctk else tk.Frame(self)
@@ -133,29 +131,44 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             return btn
         return tk.Button(self.sidebar_frame, text=text)
 
+    def _create_stat_label(self, parent, title, value):
+        f = ctk.CTkFrame(parent, corner_radius=8, fg_color="#fff", width=150) if ctk else tk.Frame(parent)
+        f.pack(side="left", padx=5, fill="y")
+        ctk.CTkLabel(f, text=title, font=("Arial", 11, "bold"), text_color="#666").pack(padx=20, pady=(10, 0))
+        lbl = ctk.CTkLabel(f, text=value, font=("Arial", 16, "bold"), text_color="#333")
+        lbl.pack(padx=20, pady=(0, 10))
+        return lbl
+
     def show_dashboard(self):
         self._clear_content()
         
-        header = ctk.CTkLabel(self.content_frame, text="Backup Status Overview", font=("Arial", 24, "bold")) if ctk else tk.Label(self.content_frame, text="Overview")
+        header = ctk.CTkLabel(self.content_frame, text="Real-time Cloud Protection", font=("Arial", 24, "bold")) if ctk else tk.Label(self.content_frame, text="Overview")
         header.pack(pady=10, anchor="w")
         
         # Connection Status Card
         status_card = ctk.CTkFrame(self.content_frame, corner_radius=10, fg_color="#fff") if ctk else tk.Frame(self.content_frame)
-        status_card.pack(fill="x", pady=20)
+        status_card.pack(fill="x", pady=10)
         
         server_display = self.base_url.replace("https://", "").replace("/api", "")
         self.lbl_connection = ctk.CTkLabel(status_card, text=f"●  Connected to node: {server_display}", text_color="#28a745") if ctk else tk.Label(status_card, text="Connected...")
         self.lbl_connection.pack(pady=15, padx=20, side="left")
         
-        btn_start = ctk.CTkButton(status_card, text="Run Backup Now", command=self.run_manual_backup, fg_color="#0072bc") if ctk else tk.Button(status_card)
+        btn_start = ctk.CTkButton(status_card, text="Start Sync", command=self.run_manual_backup, fg_color="#0072bc") if ctk else tk.Button(status_card)
         btn_start.pack(pady=15, padx=20, side="right")
 
+        # Stats Row
+        self.stats_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent") if ctk else tk.Frame(self.content_frame)
+        self.stats_frame.pack(fill="x", pady=10)
+        
+        self.lbl_files = self._create_stat_label(self.stats_frame, "Total Protected", "0 Files")
+        self.lbl_size = self._create_stat_label(self.stats_frame, "Data Size", "0.0 MB")
+
         # Progress Section
-        self.progress_label = ctk.CTkLabel(self.content_frame, text="Cloud protection active", font=("Arial", 14)) if ctk else tk.Label(self.content_frame)
+        self.progress_label = ctk.CTkLabel(self.content_frame, text="Waiting for next cycle...", font=("Arial", 14)) if ctk else tk.Label(self.content_frame)
         self.progress_label.pack(pady=10, anchor="w")
         
         self.progress_bar = ctk.CTkProgressBar(self.content_frame, width=500) if ctk else ttk.Progressbar(self.content_frame)
-        self.progress_bar.pack(pady=10, fill="x")
+        self.progress_bar.pack(pady=5, fill="x")
         self.progress_bar.set(0)
 
         # Recent Activity Logs (New Section)
@@ -219,7 +232,7 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
 
     def run_manual_backup(self):
         if self.current_job == "BUSY":
-             messagebox.showinfo("Wait", "Backup is already running")
+             # Silent ignore as requested
              return
              
         self.current_job = "BUSY"
@@ -243,6 +256,12 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
                     last_count = processed
 
                 self.progress_label.configure(text=f"Progress: {processed} files uploaded ({size_mb:.1f} MB)")
+                
+                # Update dashboard specific stats
+                if hasattr(self, 'lbl_files'):
+                    self.lbl_files.configure(text=f"{processed} Files")
+                    self.lbl_size.configure(text=f"{size_mb:.1f} MB")
+
                 if not self.engine.is_running: break
                 time.sleep(1)
             

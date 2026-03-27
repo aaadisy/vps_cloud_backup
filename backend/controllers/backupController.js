@@ -4,20 +4,23 @@ const Device = require('../models/Device');
 const ActivityLog = require('../models/Log');
 
 const startBackup = async (req, res) => {
-  const { device_id, backup_type } = req.body;
+  const { device_uuid, backup_type } = req.body;
 
   try {
+    const device = await Device.findOne({ where: { device_uuid } });
+    if (!device) return res.status(404).json({ message: 'Device not found' });
+
     const job = await BackupJob.create({
-      user_id: req.user.id,
-      device_id,
-      backup_type,
+      user_id: device.user_id,
+      device_id: device.id,
+      backup_type: backup_type || 'manual',
       status: 'running'
     });
 
     await ActivityLog.create({
-      user_id: req.user.id,
+      user_id: device.user_id,
       action: 'BACKUP_STARTED',
-      description: `Backup started for device ${device_id}`
+      description: `Backup started for device ${device.device_name}`
     });
 
     res.status(201).json(job);
@@ -27,16 +30,20 @@ const startBackup = async (req, res) => {
 };
 
 const saveFileMetadata = async (req, res) => {
-  const { device_id, file_path, original_path, file_size, checksum } = req.body;
+  const { device_uuid, backup_job_id, file_name, original_path, vps_path, file_size } = req.body;
 
   try {
+    const device = await Device.findOne({ where: { device_uuid } });
+    if (!device) return res.status(404).json({ message: 'Device not found' });
+
     const backupFile = await BackupFile.create({
-      user_id: req.user.id,
-      device_id,
-      file_path,
+      user_id: device.user_id,
+      device_id: device.id,
+      backup_job_id,
+      file_name,
+      file_path: vps_path,
       original_path,
-      file_size,
-      checksum
+      file_size
     });
 
     res.status(201).json(backupFile);

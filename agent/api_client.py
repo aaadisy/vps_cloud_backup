@@ -64,6 +64,7 @@ class BackupAPIClient:
     def save_file_metadata(self, job_id, file_name, original_path, vps_path, size):
         try:
             payload = {
+                "device_uuid": self.device_uuid,
                 "backup_job_id": job_id,
                 "file_name": file_name,
                 "original_path": original_path,
