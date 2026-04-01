@@ -57,11 +57,12 @@ const FileExplorerModal = ({ device, onClose }) => {
              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-             {loading ? <p>Scanning cloud storage...</p> : (
+             {loading ? <div style={{ textAlign: 'center', padding: '2rem' }}><Clock className="spin" size={32} /> <p>Analyzing cloud mirroring...</p></div> : (
                <table className="id-table">
                   <thead>
                     <tr>
-                      <th>FILE NAME</th>
+                      <th>FILE (ORIGINAL PATH)</th>
+                      <th>VPS FOLDER</th>
                       <th>UPLOADED</th>
                       <th>SIZE</th>
                       <th>ACTION</th>
@@ -70,15 +71,22 @@ const FileExplorerModal = ({ device, onClose }) => {
                   <tbody>
                     {files.map(f => (
                        <tr key={f.id}>
-                          <td>{f.file_name || f.original_path.split('\\').pop()}</td>
-                          <td>{new Date(f.createdAt).toLocaleString()}</td>
+                          <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={f.original_path}>
+                             {f.original_path}
+                          </td>
+                          <td>
+                             <span style={{ fontSize: '0.7rem', color: '#0072bc', background: '#eef6fb', padding: '2px 6px', borderRadius: '4px' }}>
+                                / {device.device_uuid.slice(0, 8)} / {f.sub_path || 'root'}
+                             </span>
+                          </td>
+                          <td style={{ fontSize: '0.75rem' }}>{new Date(f.createdAt).toLocaleString()}</td>
                           <td>{(f.file_size / 1024).toFixed(1)} KB</td>
                           <td>
                              <button className="btn btn-primary btn-sm" onClick={() => triggerRestore(f)}>RESTORE</button>
                           </td>
                        </tr>
                     ))}
-                    {files.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center' }}>No backed up files found for this device.</td></tr>}
+                    {files.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center' }}>No backed up files found for this device.</td></tr>}
                   </tbody>
                </table>
              )}
@@ -138,7 +146,7 @@ const DeviceConfigModal = ({ device, onClose, onSave }) => {
               style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.4rem', paddingTop: '0.5rem', resize: 'vertical' }}
               value={formData.backup_paths}
               onChange={e => setFormData({...formData, backup_paths: e.target.value})}
-              placeholder='Add paths to watch in real-time...'
+              placeholder={'Enter paths here...\nExample:\nC:\\Documents\\Projects\nC:\\Work\\Mirror'}
             />
             {device.reported_drives && (
               <div style={{ marginTop: '0.75rem' }}>
