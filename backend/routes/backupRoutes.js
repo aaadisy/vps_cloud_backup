@@ -16,10 +16,25 @@ router.post('/upload', protect, upload.single('file'), (req, res) => {
 router.get('/download/:file_id', protect, async (req, res) => {
   try {
      const BackupFile = require('../models/BackupFile');
+     const fs = require('fs');
      const file = await BackupFile.findByPk(req.params.file_id);
-     if(!file) return res.status(404).json({ message: 'File record not found' });
-     res.download(file.file_path); // file_path should be absolute on VPS
-  } catch(e) { res.status(500).json({ message: e.message }); }
+     
+     if(!file) {
+       console.error(`Download Failed: File record ${req.params.file_id} not found in DB`);
+       return res.status(404).json({ message: 'File record not found' });
+     }
+     
+     if (!fs.existsSync(file.file_path)) {
+       console.error(`Download Failed: File not found on VPS disk: ${file.file_path}`);
+       return res.status(404).json({ message: 'Physical file missing from storage' });
+     }
+
+     console.log(`Serving download: ${file.file_name} from ${file.file_path}`);
+     res.download(file.file_path);
+  } catch(e) { 
+    console.error(`Download Error: ${e.message}`);
+    res.status(500).json({ message: e.message }); 
+  }
 });
 
 router.post('/start', protect, startBackup);

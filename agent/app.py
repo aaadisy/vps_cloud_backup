@@ -322,15 +322,27 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         elif command == "CANCEL":
             self.engine.stop()
             self.current_job = "CANCELLED"
-        elif command == "RESTORE" and config.get('restore_config'):
-            restore_id = config['restore_config'].get('file_id')
-            if restore_id != self.last_restore_id:
-                if not self.is_restoring:
-                    self.last_restore_id = restore_id
-                    logging.info(f"Triggering restoration for file ID: {restore_id}")
-                    threading.Thread(target=self.run_restore, args=(config['restore_config'],), daemon=True).start()
-                else:
-                    logging.info("Restore command received but restoration already in progress")
+        elif command == "RESTORE":
+            restore_conf = config.get('restore_config')
+            if restore_conf:
+                # Handle cases where Sequelize sends it as a string instead of object
+                if isinstance(restore_conf, str):
+                    try:
+                        import json
+                        restore_conf = json.loads(restore_conf)
+                    except:
+                        logging.error("Failed to parse restore_config JSON")
+                        restore_conf = None
+                
+                if restore_conf and restore_conf.get('file_id'):
+                    restore_id = restore_conf.get('file_id')
+                    if restore_id != self.last_restore_id:
+                        if not self.is_restoring:
+                            self.last_restore_id = restore_id
+                            logging.info(f"Triggering restoration for file ID: {restore_id}")
+                            threading.Thread(target=self.run_restore, args=(restore_conf,), daemon=True).start()
+                        else:
+                             logging.info("Restore command received but restoration already in progress")
             else:
                 # Same restore ID, skip to avoid loops
                 pass
