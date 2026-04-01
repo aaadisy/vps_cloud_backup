@@ -424,6 +424,7 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             else:
                  logging.error(f"Restoration failed for file ID: {file_id}")
                  self._add_log(f"Restore Failed: API error during download")
+                 self.last_restore_id = None # Allow retry
                  messagebox.showerror("Error", "Restoration failed")
         except Exception as e:
             logging.error(f"CRITICAL Restore Error: {e}")
