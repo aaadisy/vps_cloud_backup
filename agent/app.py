@@ -285,7 +285,24 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             self.last_command = command
 
         if config and config.get('backup_paths'):
-            new_paths = config['backup_paths']
+            raw_paths = config['backup_paths']
+            new_paths = []
+            
+            # Robustly handle both list of paths and potentially mangled single strings
+            if isinstance(raw_paths, list):
+                for p in raw_paths:
+                    if '\n' in p or ',' in p:
+                        import re
+                        new_paths.extend([x.strip() for x in re.split(r'[\n,]', p) if x.strip()])
+                    else:
+                        new_paths.append(p.strip())
+            elif isinstance(raw_paths, str):
+                import re
+                new_paths = [x.strip() for x in re.split(r'[\n,]', raw_paths) if x.strip()]
+            
+            # Filter and unique
+            new_paths = list(dict.fromkeys([p for p in new_paths if p]))
+
             if new_paths != self.active_backup_paths:
                 self.active_backup_paths = new_paths
                 logging.info(f"Paths updated from cloud: {self.active_backup_paths}")
@@ -331,29 +348,13 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             self.progress_label.configure(text="Connecting to Storage node...")
             self.engine.start_backup(self.active_backup_paths)
             
-            # Simple UI update loop
-            last_count = 0
-            while self.engine.is_running:
-                stats = self.engine.stats
-                processed = stats.get('processed_files', 0)
-                size_mb = stats.get('processed_size', 0) / (1024*1024)
-                
-                if processed > last_count:
-                    self._add_log(f"Successfully uploaded: {processed} files ({size_mb:.1f} MB)")
-                    last_count = processed
-
-                self.progress_label.configure(text=f"Progress: {processed} files uploaded ({size_mb:.1f} MB)")
-                
-                # Update dashboard specific stats
-                if hasattr(self, 'lbl_files'):
-                    self.lbl_files.configure(text=f"{processed} Files")
-                    self.lbl_size.configure(text=f"{size_mb:.1f} MB")
-
-                if not self.engine.is_running: break
-                time.sleep(1)
+            # Final stats check after task completion
+            stats = self.engine.stats
+            processed = stats.get('processed_files', 0)
+            size_mb = stats.get('processed_size', 0) / (1024*1024)
             
-            self._add_log(f"Backup session completed. Total: {last_count} files.")
-            self.progress_label.configure(text="Backup Completed successfully!")
+            self._add_log(f"Backup session completed. Total: {processed} files ({size_mb:.1f} MB)")
+            self.progress_label.configure(text=f"Backup Completed! ({processed} files)")
             self.progress_bar.set(1)
             self.current_job = "IDLE"
         except Exception as e:

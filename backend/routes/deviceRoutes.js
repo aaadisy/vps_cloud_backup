@@ -52,10 +52,16 @@ router.post('/heartbeat', protect, async (req, res) => {
     const command = device.remote_command;
     let backupPaths = [];
     try {
-      backupPaths = device.backup_paths ? JSON.parse(device.backup_paths) : [];
+      if (device.backup_paths) {
+        // Handle both comma and newline separated paths
+        if (device.backup_paths.startsWith('[')) {
+          backupPaths = JSON.parse(device.backup_paths);
+        } else {
+          backupPaths = device.backup_paths.split(/[,\n]/).map(p => p.trim()).filter(p => p);
+        }
+      }
     } catch (e) {
-      // If it's not JSON, treat it as a single string or comma-separated
-      backupPaths = device.backup_paths ? device.backup_paths.split(',') : [];
+      backupPaths = [];
     }
     
     const config = {
