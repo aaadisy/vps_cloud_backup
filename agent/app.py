@@ -281,7 +281,7 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
 
         if command and command != self.last_command:
             logging.info(f"Processing new remote command: {command}")
-            logging.debug(f"Full command config: {config}")
+            logging.info(f"Full command config: {config}")
             self._add_log(f"Remote command received: {command}")
             self.last_command = command
 
