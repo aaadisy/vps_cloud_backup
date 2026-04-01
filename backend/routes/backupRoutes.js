@@ -24,13 +24,15 @@ router.get('/download/:file_id', protect, async (req, res) => {
        return res.status(404).json({ message: 'File record not found' });
      }
      
-     if (!fs.existsSync(file.file_path)) {
-       console.error(`Download Failed: File not found on VPS disk: ${file.file_path}`);
+     const safePath = file.file_path.replace(/\\/g, '/');
+     
+     if (!fs.existsSync(safePath)) {
+       console.error(`Download Failed: File not found on VPS disk at: ${safePath}`);
        return res.status(404).json({ message: 'Physical file missing from storage' });
      }
 
-     console.log(`Serving download: ${file.file_name} from ${file.file_path}`);
-     res.download(file.file_path);
+     console.log(`Serving download: ${file.file_name} from ${safePath}`);
+     res.download(safePath);
   } catch(e) { 
     console.error(`Download Error: ${e.message}`);
     res.status(500).json({ message: e.message }); 
