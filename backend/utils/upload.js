@@ -15,9 +15,8 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Store with original name or a timestamped version to avoid collisions
-    const timestamp = Date.now();
-    cb(null, `${timestamp}-${file.originalname}`);
+    // Maintain original name for exact cloud mirroring as requested
+    cb(null, file.originalname);
   }
 });
 

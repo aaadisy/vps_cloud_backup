@@ -51,6 +51,10 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         self.is_connected = False
         self.current_job = "IDLE"
         self.active_backup_paths = ["C:\\Users\\Desktop", "C:\\Users\\Documents"]
+        self.last_command = None
+        self.last_restore_id = None
+        self.is_restoring = False
+        logging.info("Application initialized")
         
         # 2. UI Layout
         self._setup_ui()
@@ -59,9 +63,12 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         # 3. Handle Window Close
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
         
-        # 4. Start Heartbeat Thread
+        # 4. Start Threads
         self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self.heartbeat_thread.start()
+        
+        self.ui_thread = threading.Thread(target=self._ui_update_loop, daemon=True)
+        self.ui_thread.start()
         
         # 5. Setup Tray Icon
         self._setup_tray()
@@ -87,10 +94,17 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         
         menu = pystray.Menu(
             pystray.MenuItem("Open Dashboard", self._show_window),
+            pystray.MenuItem("Open Logs", self.open_logs),
             pystray.MenuItem("Exit Completely", self._exit_app)
         )
         self.icon = pystray.Icon("ID-TRAUM", icon_img, "ID-TRAUM Backup", menu)
         threading.Thread(target=self.icon.run, daemon=True).start()
+
+    def open_logs(self):
+        try:
+            os.startfile(log_path)
+        except Exception as e:
+            logging.error(f"Failed to open log file: {e}")
 
     def _on_closing(self):
         self.withdraw() # Hide window but keep app running
@@ -180,6 +194,31 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         self.log_textbox.insert("0.0", "Welcome to ID-TRAUM Cloud Backup Agent\nReady for operation...\n")
         self.log_textbox.configure(state="disabled")
 
+        btn_logs = ctk.CTkButton(self.content_frame, text="Open Full Log File", command=self.open_logs, fg_color="#6c757d") if ctk else tk.Button(self.content_frame, text="Open Logs", command=self.open_logs)
+        btn_logs.pack(pady=10)
+
+    def _ui_update_loop(self):
+        while True:
+            try:
+                stats = self.engine.stats
+                processed = stats.get('processed_files', 0)
+                size_mb = stats.get('processed_size', 0) / (1024*1024)
+                
+                if hasattr(self, 'lbl_files'):
+                    self.lbl_files.configure(text=f"{processed} Files")
+                    self.lbl_size.configure(text=f"{size_mb:.2f} MB")
+                
+                if self.engine.observer and self.engine.observer.is_alive():
+                    if hasattr(self, 'progress_label'):
+                        self.progress_label.configure(text=f"Protection Active: Monitoring {len(self.active_backup_paths)} path(s)")
+                        self.progress_bar.set(0.5) # Indeterminate "active" state
+                elif self.current_job == "IDLE":
+                    if hasattr(self, 'progress_label'):
+                        self.progress_label.configure(text="Ready & Idle")
+                        self.progress_bar.set(0)
+            except: pass
+            time.sleep(1)
+
     def _add_log(self, message):
         timestamp = time.strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
@@ -229,15 +268,28 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
                 data = self.api.heartbeat(self.current_job, drive_list=drive_list)
                 if data:
                     self._process_remote_command(data.get('command'), data.get('config'))
+                
+                # Check if real-time sync needs to be started (e.g. on restart)
+                if self.active_backup_paths and (not self.engine.observer or not self.engine.observer.is_alive()):
+                     self.engine.start_realtime_sync(self.active_backup_paths)
             
             time.sleep(10)
 
     def _process_remote_command(self, command, config):
+        if not command or command == "IDLE":
+            return
+
+        if command != self.last_command:
+            logging.info(f"Processing new remote command: {command}")
+            self._add_log(f"Remote command received: {command}")
+            self.last_command = command
+
         if config and config.get('backup_paths'):
             new_paths = config['backup_paths']
             if new_paths != self.active_backup_paths:
                 self.active_backup_paths = new_paths
-                logging.info(f"Paths updated: {self.active_backup_paths}")
+                logging.info(f"Paths updated from cloud: {self.active_backup_paths}")
+                self._add_log("Backup paths updated from cloud console")
                 # Start real-time sync automatically
                 self.engine.start_realtime_sync(self.active_backup_paths)
 
@@ -253,7 +305,17 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             self.engine.stop()
             self.current_job = "CANCELLED"
         elif command == "RESTORE" and config.get('restore_config'):
-            threading.Thread(target=self.run_restore, args=(config['restore_config'],)).start()
+            restore_id = config['restore_config'].get('file_id')
+            if restore_id != self.last_restore_id:
+                if not self.is_restoring:
+                    self.last_restore_id = restore_id
+                    logging.info(f"Triggering restoration for file ID: {restore_id}")
+                    threading.Thread(target=self.run_restore, args=(config['restore_config'],), daemon=True).start()
+                else:
+                    logging.info("Restore command received but restoration already in progress")
+            else:
+                # Same restore ID, skip to avoid loops
+                pass
 
     def run_manual_backup(self):
         if self.current_job == "BUSY":
@@ -299,20 +361,48 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             self.current_job = "IDLE"
 
     def run_restore(self, config):
+        if self.is_restoring: return
+        self.is_restoring = True
+        
         file_id = config.get('file_id')
         target = config.get('target_dir', 'C:\\Restored')
         
-        if not os.path.exists(target): os.makedirs(target)
-        save_path = os.path.join(target, f"RESTORE_{str(uuid.uuid4())[:8]}")
-        
-        self.progress_label.configure(text=f"Downloading restoration file: {file_id}...")
-        success = self.api.download_file(file_id, save_path)
-        
-        if success:
-             messagebox.showinfo("Success", f"Remote restoration completed to {save_path}")
-             self.progress_label.configure(text="Restoration successful")
-        else:
-             messagebox.showerror("Error", "Restoration failed")
+        logging.info(f"Starting restoration task: File={file_id}, Target={target}")
+        self._add_log(f"Restoration started for File ID: {file_id}")
+
+        try:
+            if not os.path.exists(target): 
+                try:
+                    os.makedirs(target)
+                    logging.info(f"Created target directory: {target}")
+                except Exception as e:
+                    logging.error(f"Failed to create target directory {target}: {e}")
+                    self._add_log(f"Restore Error: Could not create directory {target}")
+                    return
+
+            # Generate filename base on original name if possible
+            save_name = f"RESTORED_{int(time.time())}_{str(uuid.uuid4())[:4]}"
+            save_path = os.path.join(target, save_name)
+            
+            self.progress_label.configure(text=f"Downloading restoration file: {file_id}...")
+            
+            success = self.api.download_file(file_id, save_path)
+            
+            if success:
+                 logging.info(f"Restoration successful. File saved to: {save_path}")
+                 self._add_log(f"Restore Success: File saved to {save_path}")
+                 messagebox.showinfo("Success", f"Remote restoration completed to {save_path}")
+                 self.progress_label.configure(text="Restoration successful")
+            else:
+                 logging.error(f"Restoration failed for file ID: {file_id}")
+                 self._add_log(f"Restore Failed: API error during download")
+                 messagebox.showerror("Error", "Restoration failed")
+        except Exception as e:
+            logging.error(f"CRITICAL Restore Error: {e}")
+            self._add_log(f"Restore Critical Error: {str(e)}")
+        finally:
+            self.is_restoring = False
+            self.progress_label.configure(text="Waiting for next cycle...")
 
 if __name__ == "__main__":
     app = TraumbBackupApp()

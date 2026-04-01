@@ -3,6 +3,7 @@ import json
 import uuid
 import socket
 import platform
+import logging
 
 class BackupAPIClient:
     def __init__(self, base_url, device_uuid=None):
@@ -10,6 +11,7 @@ class BackupAPIClient:
         self.device_uuid = device_uuid or self._get_hw_id()
         self.token = None
         self.headers = {}
+        logging.info(f"API Client initialized for device: {self.device_uuid}")
 
     def _get_hw_id(self):
         # Unique hardware device ID
@@ -22,15 +24,17 @@ class BackupAPIClient:
                 "device_uuid": self.device_uuid,
                 "os_type": f"{platform.system()} {platform.release()}"
             }
-            # Note: We need a secret for the first registration
+            logging.info(f"Registering device at {self.base_url}/device/register")
             res = requests.post(f"{self.base_url}/device/register", json=payload)
             if res.status_code in [200, 201]:
                 self.token = res.json().get('token')
                 self.headers = {"Authorization": f"Bearer {self.token}"}
+                logging.info("Registration successful")
                 return True
+            logging.error(f"Registration failed: {res.status_code} - {res.text}")
             return False
         except Exception as e:
-            print(f"Registration Error: {e}")
+            logging.error(f"Registration Error: {e}")
             return False
 
     def start_backup(self, backup_type="manual"):
@@ -39,12 +43,14 @@ class BackupAPIClient:
                 "device_uuid": self.device_uuid,
                 "backup_type": backup_type
             }
+            logging.info(f"Starting backup: {backup_type}")
             res = requests.post(f"{self.base_url}/backup/start", json=payload, headers=self.headers)
             if res.status_code in [200, 201]:
                 return res.json()
+            logging.error(f"Backup start failed: {res.status_code}")
             return None
         except Exception as e:
-            print(f"Start Backup Error: {e}")
+            logging.error(f"Start Backup Error: {e}")
             return None
 
     def heartbeat(self, status="IDLE", drive_list=None):
@@ -54,12 +60,18 @@ class BackupAPIClient:
                 "current_status": status,
                 "drive_list": drive_list
             }
+            # Suppress verbose heartbeat logging to avoid filling logs too quickly
+            # logging.debug(f"Sending heartbeat: {status}")
             res = requests.post(f"{self.base_url}/device/heartbeat", json=payload, headers=self.headers)
             if res.status_code == 200:
-                return res.json()
+                data = res.json()
+                if data.get('command') and data.get('command') != "IDLE":
+                     logging.info(f"Heartbeat received command: {data.get('command')}")
+                return data
+            logging.error(f"Heartbeat failed: {res.status_code}")
             return None
         except Exception as e:
-            print(f"Heartbeat Error: {e}")
+            logging.error(f"Heartbeat Error: {e}")
             return None
 
     def save_file_metadata(self, job_id, file_name, original_path, vps_path, size):
@@ -75,6 +87,7 @@ class BackupAPIClient:
             res = requests.post(f"{self.base_url}/backup/file-metadata", json=payload, headers=self.headers)
             return res.status_code in [200, 201]
         except Exception as e:
+            logging.error(f"Metadata Save Error: {e}")
             return False
 
     def upload_file(self, file_path, sub_path):
@@ -88,7 +101,7 @@ class BackupAPIClient:
                 res = requests.post(f"{self.base_url}/backup/upload", files=files, data=data, headers=self.headers)
                 return res.status_code == 200
         except Exception as e:
-            print(f"Upload Error: {e}")
+            logging.error(f"Upload Error: {file_path} - {e}")
             return False
 
     def update_progress(self, job_id, percent, size, files):
@@ -105,12 +118,16 @@ class BackupAPIClient:
 
     def download_file(self, file_id, save_path):
         try:
-            with requests.get(f"{self.base_url}/backup/download/{file_id}", headers=self.headers, stream=True) as r:
+            logging.info(f"Downloading file ID: {file_id} to {save_path}")
+            url = f"{self.base_url}/backup/download/{file_id}"
+            with requests.get(url, headers=self.headers, stream=True) as r:
                 r.raise_for_status()
                 with open(save_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
+            logging.info(f"Download complete: {save_path}")
             return True
         except Exception as e:
-            print(f"Download Error: {e}")
+            logging.error(f"Download Error: {e}")
             return False
+
