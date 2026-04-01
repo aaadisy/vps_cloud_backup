@@ -25,6 +25,7 @@ const startBackup = async (req, res) => {
 
     res.status(201).json(job);
   } catch (error) {
+    console.error('CRITICAL: startBackup failed', { error: error.message, body: req.body });
     res.status(500).json({ message: error.message });
   }
 };
