@@ -1,8 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { startBackup, saveFileMetadata, completeBackup, getBackupHistory } = require('../controllers/backupController');
+
+const { 
+  startBackup, 
+  saveFileMetadata, 
+  completeBackup, 
+  getBackupHistory, 
+  downloadFile 
+} = require('../controllers/backupController');
+
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../utils/upload');
+
+// Diagnostic route
+router.get('/ping', (req, res) => res.json({ message: 'Backup API Reachable' }));
 
 router.post('/upload', protect, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -13,31 +24,7 @@ router.post('/upload', protect, upload.single('file'), (req, res) => {
   });
 });
 
-router.get('/download/:file_id', protect, async (req, res) => {
-  try {
-     const BackupFile = require('../models/BackupFile');
-     const fs = require('fs');
-     const file = await BackupFile.findByPk(req.params.file_id);
-     
-     if(!file) {
-       console.error(`Download Failed: File record ${req.params.file_id} not found in DB`);
-       return res.status(404).json({ message: 'File record not found' });
-     }
-     
-     const safePath = file.file_path.replace(/\\/g, '/');
-     
-     if (!fs.existsSync(safePath)) {
-       console.error(`Download Failed: File not found on VPS disk at: ${safePath}`);
-       return res.status(404).json({ message: 'Physical file missing from storage' });
-     }
-
-     console.log(`Serving download: ${file.file_name} from ${safePath}`);
-     res.download(safePath);
-  } catch(e) { 
-    console.error(`Download Error: ${e.message}`);
-    res.status(500).json({ message: e.message }); 
-  }
-});
+router.get('/download/:file_id', protect, downloadFile);
 
 router.post('/start', protect, startBackup);
 router.post('/file-metadata', protect, saveFileMetadata);

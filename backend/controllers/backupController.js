@@ -110,4 +110,36 @@ const getDeviceFiles = async (req, res) => {
   }
 };
 
-module.exports = { startBackup, saveFileMetadata, completeBackup, getBackupHistory, getDeviceFiles };
+const downloadFile = async (req, res) => {
+  try {
+     const fs = require('fs');
+     const file = await BackupFile.findByPk(req.params.file_id);
+     
+     if(!file) {
+       console.error(`Download Failed: File record ${req.params.file_id} not found in DB`);
+       return res.status(404).json({ message: 'File record not found' });
+     }
+     
+     const safePath = file.file_path.replace(/\\/g, '/');
+     
+     if (!fs.existsSync(safePath)) {
+       console.error(`Download Failed: File not found on VPS disk at: ${safePath}`);
+       return res.status(404).json({ message: 'Physical file missing from storage' });
+     }
+
+     console.log(`Serving download: ${file.file_name} from ${safePath}`);
+     res.download(safePath);
+  } catch(e) { 
+    console.error(`Download Error: ${e.message}`);
+    res.status(500).json({ message: e.message }); 
+  }
+};
+
+module.exports = { 
+  startBackup, 
+  saveFileMetadata, 
+  completeBackup, 
+  getBackupHistory, 
+  getDeviceFiles,
+  downloadFile
+};
