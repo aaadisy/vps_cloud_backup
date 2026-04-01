@@ -31,7 +31,6 @@ class BackupAPIClient:
                 self.headers = {"Authorization": f"Bearer {self.token}"}
                 logging.info("Registration successful")
                 return True
-            logging.error(f"Registration failed: {res.status_code} - {res.text}")
             return False
         except Exception as e:
             logging.error(f"Registration Error: {e}")
@@ -43,8 +42,10 @@ class BackupAPIClient:
                 "device_uuid": self.device_uuid,
                 "backup_type": backup_type
             }
-            logging.info(f"Starting backup: {backup_type}")
-            res = requests.post(f"{self.base_url}/backup/start", json=payload, headers=self.headers)
+            url = f"{self.base_url}/backup/start"
+            logging.info(f"POST {url} Payload: {payload}")
+            res = requests.post(url, json=payload, headers=self.headers)
+            logging.info(f"Start Backup Response [{res.status_code}]: {res.text[:200]}")
             if res.status_code in [200, 201]:
                 return res.json()
             logging.error(f"Backup start failed: {res.status_code}")
@@ -60,15 +61,17 @@ class BackupAPIClient:
                 "current_status": status,
                 "drive_list": drive_list
             }
-            # Suppress verbose heartbeat logging to avoid filling logs too quickly
-            # logging.debug(f"Sending heartbeat: {status}")
-            res = requests.post(f"{self.base_url}/device/heartbeat", json=payload, headers=self.headers)
+            url = f"{self.base_url}/device/heartbeat"
+            res = requests.post(url, json=payload, headers=self.headers)
+            
+            # Log heartbeat only if command is present to avoid noise
             if res.status_code == 200:
                 data = res.json()
                 if data.get('command') and data.get('command') != "IDLE":
-                     logging.info(f"Heartbeat received command: {data.get('command')}")
+                     logging.info(f"RECV {url} Response: {data}")
                 return data
-            logging.error(f"Heartbeat failed: {res.status_code}")
+            else:
+                logging.error(f"Heartbeat failed [{res.status_code}]: {res.text[:100]}")
             return None
         except Exception as e:
             logging.error(f"Heartbeat Error: {e}")
@@ -84,7 +87,10 @@ class BackupAPIClient:
                 "vps_path": vps_path,
                 "file_size": size
             }
-            res = requests.post(f"{self.base_url}/backup/file-metadata", json=payload, headers=self.headers)
+            url = f"{self.base_url}/backup/file-metadata"
+            logging.info(f"POST {url} Payload: {payload}")
+            res = requests.post(url, json=payload, headers=self.headers)
+            logging.info(f"Metadata Response [{res.status_code}]: {res.text[:200]}")
             return res.status_code in [200, 201]
         except Exception as e:
             logging.error(f"Metadata Save Error: {e}")
@@ -118,9 +124,14 @@ class BackupAPIClient:
 
     def download_file(self, file_id, save_path):
         try:
-            logging.info(f"Downloading file ID: {file_id} to {save_path}")
             url = f"{self.base_url}/backup/download/{file_id}"
+            logging.info(f"GET {url}")
+            logging.info(f"Headers: {self.headers}")
+            
             with requests.get(url, headers=self.headers, stream=True) as r:
+                logging.info(f"Download Response Code: {r.status_code}")
+                if r.status_code != 200:
+                    logging.error(f"Download unsuccessful: {r.text[:200]}")
                 r.raise_for_status()
                 with open(save_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
@@ -129,5 +140,7 @@ class BackupAPIClient:
             return True
         except Exception as e:
             logging.error(f"Download Error: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                logging.error(f"Error Response Body: {e.response.text[:200]}")
             return False
 
