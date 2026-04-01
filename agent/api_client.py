@@ -104,11 +104,16 @@ class BackupAPIClient:
                     'device_uuid': self.device_uuid,
                     'sub_path': sub_path
                 }
-                res = requests.post(f"{self.base_url}/backup/upload", files=files, data=data, headers=self.headers)
-                return res.status_code == 200
+                url = f"{self.base_url}/backup/upload"
+                res = requests.post(url, files=files, data=data, headers=self.headers)
+                logging.info(f"Upload Response [{res.status_code}]: {res.text[:100]}")
+                
+                if res.status_code == 200:
+                    return res.json().get('path') # Return the physical path on VPS
+                return None
         except Exception as e:
             logging.error(f"Upload Error: {file_path} - {e}")
-            return False
+            return None
 
     def update_progress(self, job_id, percent, size, files):
         try:
@@ -124,7 +129,7 @@ class BackupAPIClient:
 
     def download_file(self, file_id, save_path):
         try:
-            url = f"{self.base_url}/backup/download/{file_id}"
+            url = f"{self.base_url}/raw-restore/{file_id}"
             logging.info(f"GET {url}")
             logging.info(f"Headers: {self.headers}")
             

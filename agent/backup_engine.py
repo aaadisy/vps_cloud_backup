@@ -108,11 +108,12 @@ class BackupEngine:
             
             logging.info(f"Syncing {file_name} to cloud folder: {cloud_sub_path}")
             
-            if self.api_client.upload_file(file_path, cloud_sub_path):
-                 self.api_client.save_file_metadata(self.current_job_id, file_name, file_path, cloud_sub_path, file_size)
-                 self._uploaded_cache[file_path] = file_hash
-                 self.stats["processed_files"] += 1
-                 self.stats["processed_size"] += file_size
+            vps_path = self.api_client.upload_file(file_path, cloud_sub_path)
+            if vps_path:
+                self.api_client.save_file_metadata(self.current_job_id, file_name, file_path, vps_path, file_size)
+                self._uploaded_cache[file_path] = file_hash
+                self.stats["processed_files"] += 1
+                self.stats["processed_size"] += file_size
         except Exception as e:
             logging.error(f"Sync error for {file_path}: {e}")
 
@@ -151,8 +152,9 @@ class BackupEngine:
                     cloud_sub_path = os.path.join(root_name, rel_dir)
                     
                 file_size = os.path.getsize(file_path)
-                if self.api_client.upload_file(file_path, cloud_sub_path):
-                    self.api_client.save_file_metadata(self.current_job_id, file, file_path, cloud_sub_path, file_size)
+                vps_path = self.api_client.upload_file(file_path, cloud_sub_path)
+                if vps_path:
+                    self.api_client.save_file_metadata(self.current_job_id, file, file_path, vps_path, file_size)
                     self._uploaded_cache[file_path] = file_hash
                     self.stats["processed_files"] += 1
                     self.stats["processed_size"] += file_size

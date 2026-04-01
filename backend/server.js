@@ -35,6 +35,12 @@ app.use('/api/device', deviceRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/admin', adminRoutes);
 
+// Test Direct Route to bypass potential prefix issues
+app.get('/api/raw-restore/:file_id', (req, res) => {
+  const { downloadFile } = require('./controllers/backupController');
+  return downloadFile(req, res);
+});
+
 // Root route
 app.get('/', (req, res) => {
   res.send('Cloud Backup API is running...');
