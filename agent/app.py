@@ -381,8 +381,16 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
                     self._add_log(f"Restore Error: Could not create directory {target}")
                     return
 
-            # Generate filename base on original name if possible
-            save_name = f"RESTORED_{int(time.time())}_{str(uuid.uuid4())[:4]}"
+            # Use original name if available, otherwise generated one
+            original_name = config.get('original_name')
+            if original_name:
+                save_name = original_name
+                # Avoid collision if name exists
+                if os.path.exists(os.path.join(target, save_name)):
+                    save_name = f"RESTORED_{int(time.time())}_{original_name}"
+            else:
+                save_name = f"RESTORED_{int(time.time())}_{str(uuid.uuid4())[:4]}"
+                
             save_path = os.path.join(target, save_name)
             
             self.progress_label.configure(text=f"Downloading restoration file: {file_id}...")
@@ -392,6 +400,12 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
             if success:
                  logging.info(f"Restoration successful. File saved to: {save_path}")
                  self._add_log(f"Restore Success: File saved to {save_path}")
+                 
+                 # Open the folder automatically to show the user
+                 try:
+                     os.startfile(target)
+                 except: pass
+                 
                  messagebox.showinfo("Success", f"Remote restoration completed to {save_path}")
                  self.progress_label.configure(text="Restoration successful")
             else:

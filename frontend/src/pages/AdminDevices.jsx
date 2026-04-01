@@ -43,9 +43,10 @@ const FileExplorerModal = ({ device, onClose }) => {
     try {
       await api.post(`/admin/device/${device.id}/restore`, { 
         file_id: file.id,
-        target_dir: targetDir
+        target_dir: targetDir,
+        original_name: file.file_name || file.original_path.split(/[\\/]/).pop()
       });
-      alert("Restore command queued to agent!");
+      alert(`Restoration of ${file.file_name || 'file'} queued to agent!`);
     } catch (e) { alert("Restore failed"); }
   }
 
