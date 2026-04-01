@@ -84,11 +84,12 @@ router.post('/device/:id/restore', async (req, res) => {
     const device = await Device.findByPk(req.params.id);
     if (!device) return res.status(404).json({ message: 'Device not found' });
     
-    // Set restore configuration
+    // Set restore configuration using values from frontend
     device.remote_command = 'RESTORE';
     device.restore_config = {
       file_id,
       target_dir: target_dir || 'C:\\Restored_Files',
+      original_name: req.body.original_name, // Preserve original name for the agent
       status: 'pending'
     };
     
