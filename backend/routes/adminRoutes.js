@@ -52,6 +52,15 @@ router.get('/backups', async (req, res) => {
   res.json(backups);
 });
 
+router.get('/backups/:job_id/files', async (req, res) => {
+  try {
+    const files = await BackupFile.findAll({ where: { backup_job_id: req.params.job_id } });
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 router.put('/device/:id', async (req, res) => {
   try {
@@ -90,7 +99,8 @@ router.post('/device/:id/restore', async (req, res) => {
       file_id,
       target_dir: target_dir || 'C:\\Restored_Files',
       original_name: req.body.original_name, // Preserve original name for the agent
-      status: 'pending'
+      status: 'pending',
+      timestamp: Date.now() // Unique ID to ensure agent detects new request
     };
     
     await device.save();
@@ -103,6 +113,79 @@ router.post('/device/:id/restore', async (req, res) => {
     });
 
     res.json({ message: 'Restore command queued successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// New route to handle restoration from Backup History page
+router.post('/trigger-restore/:job_id', async (req, res) => {
+  try {
+    const job = await BackupJob.findByPk(req.params.job_id, { include: [Device] });
+    if (!job) return res.status(404).json({ message: 'Backup job not found' });
+    
+    // Find files associated with this job
+    const files = await BackupFile.findAll({ where: { backup_job_id: job.id } });
+    if (files.length === 0) return res.status(404).json({ message: 'No files found for this backup job' });
+    
+    const device = job.Device;
+    device.remote_command = 'RESTORE';
+    device.restore_config = {
+      files: files.map(f => ({ 
+        id: f.id, 
+        original_name: f.file_name || f.original_path.split(/[\\/]/).pop() 
+      })),
+      target_dir: 'C:\\Restored_Files',
+      status: 'pending',
+      timestamp: Date.now()
+    };
+    
+    await device.save();
+    
+    await ActivityLog.create({
+      user_id: req.user.id,
+      device_id: device.id,
+      action: 'RESTORE_JOB_QUEUED',
+      description: `Bulk restore of JOB-${job.id} triggered (${files.length} files)`
+    });
+
+    res.json({ message: `Bulk restore of ${files.length} files from JOB-${job.id} initiated.` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Route to restore all files for a device
+router.post('/device/:id/restore-all', async (req, res) => {
+  try {
+    const { target_dir } = req.body;
+    const device = await Device.findByPk(req.params.id);
+    if (!device) return res.status(404).json({ message: 'Device not found' });
+    
+    const files = await BackupFile.findAll({ where: { device_id: device.id } });
+    if (files.length === 0) return res.status(404).json({ message: 'No files found for this device' });
+
+    device.remote_command = 'RESTORE';
+    device.restore_config = {
+      files: files.map(f => ({ 
+        id: f.id, 
+        original_name: f.file_name || f.original_path.split(/[\\/]/).pop() 
+      })),
+      target_dir: target_dir || 'C:\\Restored_Files',
+      status: 'pending',
+      timestamp: Date.now()
+    };
+    
+    await device.save();
+    
+    await ActivityLog.create({
+      user_id: req.user.id,
+      device_id: device.id,
+      action: 'RESTORE_ALL_QUEUED',
+      description: `Bulk restore of all ${files.length} files triggered for ${device.device_name}`
+    });
+
+    res.json({ message: `Bulk restore of all ${files.length} files initiated.` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

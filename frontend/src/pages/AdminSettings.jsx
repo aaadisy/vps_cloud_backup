@@ -17,6 +17,7 @@ import '../styles/admin.css';
 
 const AdminSettings = () => {
   const [vpsList, setVpsList] = useState([]);
+  const [storageStats, setStorageStats] = useState(null);
   const [config, setConfig] = useState({
     siteName: 'ID-TRAUM VPS Cloud Backup',
     adminEmail: 'admin@traumhosting.net',
@@ -28,7 +29,15 @@ const AdminSettings = () => {
 
   useEffect(() => {
     fetchVPS();
+    fetchStorageStats();
   }, []);
+
+  const fetchStorageStats = async () => {
+    try {
+      const res = await api.get('/admin/storage-usage');
+      setStorageStats(res.data);
+    } catch (e) { console.error("Error fetching storage stats"); }
+  };
 
   const fetchVPS = async () => {
     try {
@@ -105,8 +114,12 @@ const AdminSettings = () => {
                         <td>{vps.vps_name}</td>
                         <td style={{ fontSize: '0.85rem' }}>{vps.ip_address}</td>
                         <td>
-                          <div style={{ fontSize: '0.75rem' }}>0 GB / {(vps.total_storage / (1024**3)).toFixed(0)} GB</div>
-                          <div className="progress-bar" style={{ height: '4px' }}><div className="progress-fill" style={{ width: '0%' }}></div></div>
+                          <div style={{ fontSize: '0.75rem' }}>
+                             {storageStats ? (storageStats.used_bytes / (1024**3)).toFixed(2) : '0'} GB / {(vps.total_storage / (1024**3)).toFixed(0)} GB
+                          </div>
+                          <div className="progress-bar" style={{ height: '4px' }}>
+                             <div className="progress-fill" style={{ width: `${storageStats ? storageStats.percent_used : 0}%` }}></div>
+                          </div>
                         </td>
                         <td><span className="status-badge status-online">ACTIVE</span></td>
                         <td>

@@ -53,6 +53,7 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         self.active_backup_paths = ["C:\\Users\\Desktop", "C:\\Users\\Documents"]
         self.last_command = None
         self.last_restore_id = None
+        self.last_restore_timestamp = None
         self.is_restoring = False
         logging.info("Application initialized")
         
@@ -322,6 +323,10 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         elif command == "CANCEL":
             self.engine.stop()
             self.current_job = "CANCELLED"
+        elif command == "SUSPEND":
+            self.engine.stop()
+            self.current_job = "SUSPENDED"
+            self._add_log("Agent SUSPENDED by Cloud Administrator")
         elif command == "RESTORE":
             restore_conf = config.get('restore_config')
             if restore_conf:
@@ -336,9 +341,12 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
                 
                 if restore_conf and restore_conf.get('file_id'):
                     restore_id = restore_conf.get('file_id')
-                    if restore_id != self.last_restore_id:
+                    timestamp = restore_conf.get('timestamp')
+                    
+                    if timestamp != self.last_restore_timestamp or restore_id != self.last_restore_id:
                         if not self.is_restoring:
                             self.last_restore_id = restore_id
+                            self.last_restore_timestamp = timestamp
                             logging.info(f"Triggering restoration for file ID: {restore_id}")
                             threading.Thread(target=self.run_restore, args=(restore_conf,), daemon=True).start()
                         else:
@@ -378,60 +386,65 @@ class TraumbBackupApp(ctk.CTk if ctk else tk.Tk):
         if self.is_restoring: return
         self.is_restoring = True
         
-        file_id = config.get('file_id')
+        # Support both single file_id and bulk 'files' array
+        files_to_restore = config.get('files', [])
+        if not files_to_restore and config.get('file_id'):
+            files_to_restore = [{
+                'id': config.get('file_id'),
+                'original_name': config.get('original_name')
+            }]
+
         target = config.get('target_dir', 'C:\\Restored')
+        total = len(files_to_restore)
         
-        logging.info(f"Starting restoration task: File={file_id}, Target={target}")
-        self._add_log(f"Restoration started for File ID: {file_id}")
+        logging.info(f"Starting restoration task: {total} files, Target={target}")
+        self._add_log(f"Restoration started for {total} files")
 
+        if not os.path.exists(target): 
+            try:
+                os.makedirs(target)
+            except Exception as e:
+                logging.error(f"Failed to create target directory {target}: {e}")
+                self._add_log(f"Restore Error: Could not create directory {target}")
+                self.is_restoring = False
+                return
+
+        success_count = 0
         try:
-            if not os.path.exists(target): 
-                try:
-                    os.makedirs(target)
-                    logging.info(f"Created target directory: {target}")
-                except Exception as e:
-                    logging.error(f"Failed to create target directory {target}: {e}")
-                    self._add_log(f"Restore Error: Could not create directory {target}")
-                    return
-
-            # Use original name if available, otherwise generated one
-            original_name = config.get('original_name')
-            if original_name:
-                save_name = original_name
-                # Avoid collision if name exists
-                if os.path.exists(os.path.join(target, save_name)):
-                    save_name = f"RESTORED_{int(time.time())}_{original_name}"
-            else:
-                save_name = f"RESTORED_{int(time.time())}_{str(uuid.uuid4())[:4]}"
+            for index, file_info in enumerate(files_to_restore):
+                file_id = file_info.get('id')
+                original_name = file_info.get('original_name')
                 
-            save_path = os.path.join(target, save_name)
-            
-            self.progress_label.configure(text=f"Downloading restoration file: {file_id}...")
-            
-            success = self.api.download_file(file_id, save_path)
-            
-            if success:
-                 logging.info(f"Restoration successful. File saved to: {save_path}")
-                 self._add_log(f"Restore Success: File saved to {save_path}")
-                 
-                 # Open the folder automatically to show the user
+                # Avoid collision if name exists
+                save_name = original_name if original_name else f"RESTORED_{int(time.time())}_{str(uuid.uuid4())[:4]}"
+                if os.path.exists(os.path.join(target, save_name)):
+                    save_name = f"RESTORED_{index}_{int(time.time())}_{save_name}"
+                    
+                save_path = os.path.join(target, save_name)
+                
+                self.after(0, lambda i=index+1, t=total: self.progress_label.configure(text=f"Restoring file {i}/{t}..."))
+                
+                if self.api.download_file(file_id, save_path):
+                     success_count += 1
+                     logging.info(f"Restored: {save_path}")
+                else:
+                     self._add_log(f"Restore Failed for file {file_id}")
+
+            if success_count > 0:
+                 self._add_log(f"Restore Success: {success_count}/{total} files saved to {target}")
                  try:
                      os.startfile(target)
                  except: pass
-                 
-                 messagebox.showinfo("Success", f"Remote restoration completed to {save_path}")
-                 self.progress_label.configure(text="Restoration successful")
+                 self.after(0, lambda: messagebox.showinfo("Restore Complete", f"Successfully restored {success_count} files to {target}"))
             else:
-                 logging.error(f"Restoration failed for file ID: {file_id}")
-                 self._add_log(f"Restore Failed: API error during download")
-                 self.last_restore_id = None # Allow retry
-                 messagebox.showerror("Error", "Restoration failed")
+                 self.last_restore_timestamp = None 
+                 self.after(0, lambda: messagebox.showerror("Restore Failed", "Failed to restore any files. Check agent logs."))
         except Exception as e:
             logging.error(f"CRITICAL Restore Error: {e}")
             self._add_log(f"Restore Critical Error: {str(e)}")
         finally:
             self.is_restoring = False
-            self.progress_label.configure(text="Waiting for next cycle...")
+            self.after(0, lambda: self.progress_label.configure(text="Waiting for next cycle..."))
 
 if __name__ == "__main__":
     app = TraumbBackupApp()

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Database, 
@@ -10,14 +9,71 @@ import {
   FileText,
   RotateCcw,
   Zap,
-  LayoutGrid
+  LayoutGrid,
+  X,
+  File
 } from 'lucide-react';
 import api from '../utils/api';
 import '../styles/admin.css';
 
+const JobDetailsModal = ({ job, onClose }) => {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const { data } = await api.get(`/admin/backups/${job.id}/files`);
+        setFiles(data);
+      } catch (err) {
+        console.error('Failed to fetch job files');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFiles();
+  }, [job.id]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+       <div className="card" style={{ width: '600px', maxHeight: '80vh', padding: '2rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Files in JOB-{job.id}</h2>
+             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+             {loading ? <div style={{ textAlign: 'center', padding: '1rem' }}><Clock className="spin" size={24} /></div> : (
+               <table className="id-table">
+                  <thead>
+                    <tr>
+                      <th>FILE NAME</th>
+                      <th>SIZE</th>
+                      <th>ORIGINAL PATH</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {files.map(f => (
+                       <tr key={f.id}>
+                          <td style={{ fontSize: '0.8rem' }}>{f.file_name}</td>
+                          <td>{(f.file_size / 1024).toFixed(1)} KB</td>
+                          <td style={{ fontSize: '0.7rem', color: '#666' }} title={f.original_path}>{f.original_path.slice(0, 30)}...</td>
+                       </tr>
+                    ))}
+                    {files.length === 0 && <tr><td colSpan="3" style={{ textAlign: 'center' }}>No files recorded for this job.</td></tr>}
+                  </tbody>
+               </table>
+             )}
+          </div>
+       </div>
+    </div>
+  );
+};
+
 const AdminBackups = () => {
   const [backups, setBackups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     const fetchBackups = async () => {
@@ -48,7 +104,6 @@ const AdminBackups = () => {
       <div className="top-bar">
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Restore / Backup Logs</h1>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-outline"><Calendar size={18} /> Date Range</button>
           <button className="btn btn-primary"><RotateCcw size={18} /> Restore Files</button>
         </div>
       </div>
@@ -57,10 +112,6 @@ const AdminBackups = () => {
         <div className="table-container">
           <div className="table-header">
             <h3 style={{ fontSize: '0.9rem', fontWeight: 700 }}>System-wide Backup Operations</h3>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}><Zap size={14} /> Real-time</button>
-              <button className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}><LayoutGrid size={14} /></button>
-            </div>
           </div>
 
           <table className="id-table">
@@ -112,7 +163,7 @@ const AdminBackups = () => {
                   <td style={{ fontSize: '0.85rem', color: '#666' }}>{job.completed_at ? new Date(job.completed_at).toLocaleString() : 'Running...'}</td>
                   <td style={{ color: '#0072bc', fontWeight: 600, fontSize: '0.8rem' }}>
                     <div style={{ display: 'flex', gap: '8px', cursor: 'pointer' }}>
-                      <span onClick={() => alert('Viewing details...')}>DETAILS</span>
+                      <span onClick={() => { setSelectedJob(job); setShowDetails(true); }}>DETAILS</span>
                       {job.status === 'completed' && (
                         <span onClick={() => triggerRestore(job)} style={{ color: '#28a745', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <RotateCcw size={14} /> RESTORE
@@ -129,6 +180,13 @@ const AdminBackups = () => {
           </table>
         </div>
       </div>
+
+      {showDetails && (
+        <JobDetailsModal 
+          job={selectedJob} 
+          onClose={() => setShowDetails(false)} 
+        />
+      )}
     </div>
   );
 };

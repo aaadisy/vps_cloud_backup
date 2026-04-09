@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
 import { 
-  Server, 
-  Plus, 
-  Search, 
-  Trash2, 
-  CheckCircle2, 
-  AlertCircle,
-  HardDrive,
   Clock,
   ExternalLink,
   ShieldCheck,
   Play,
   X,
   Settings,
-  Calendar
+  AlertCircle,
+  Search,
+  Trash2,
+  CheckCircle2,
+  HardDrive
 } from 'lucide-react';
 import api from '../utils/api';
 import '../styles/admin.css';
@@ -50,12 +47,34 @@ const FileExplorerModal = ({ device, onClose }) => {
     } catch (e) { alert("Restore failed"); }
   }
 
+  const triggerRestoreAll = async () => {
+    if (files.length === 0) return;
+    const targetDir = window.prompt("Enter destination path on client PC for ALL files:", "C:\\Restored_Files");
+    if (!targetDir) return;
+    try {
+      await api.post(`/admin/device/${device.id}/restore-all`, { 
+        target_dir: targetDir
+      });
+      alert(`Bulk restoration of ${files.length} files queued to agent!`);
+    } catch (e) { alert("Bulk restore failed"); }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
        <div className="card" style={{ width: '80%', maxWidth: '800px', height: '600px', padding: '2rem', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Restore Explorer: {device.device_name}</h2>
-             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
+             <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Restore Explorer: {device.device_name}</h2>
+                <p style={{ fontSize: '0.75rem', color: '#666' }}>{files.length} files available in cloud mirror</p>
+             </div>
+             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                {files.length > 0 && (
+                  <button className="btn btn-outline btn-sm" onClick={triggerRestoreAll} style={{ color: '#28a745', borderColor: '#28a745' }}>
+                     RESTORE ALL ({files.length})
+                  </button>
+                )}
+                <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
+             </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
              {loading ? <div style={{ textAlign: 'center', padding: '2rem' }}><Clock className="spin" size={32} /> <p>Analyzing cloud mirroring...</p></div> : (
@@ -182,100 +201,10 @@ const DeviceConfigModal = ({ device, onClose, onSave }) => {
   );
 };
 
-const DeviceModal = ({ onClose, onSave }) => {
-  const [formData, setFormData] = useState({ device_name: '', device_uuid: '', os_type: 'UBUNTU 22.04', user_id: '' });
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    api.get('/admin/users').then(res => setUsers(res.data));
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      // Logic for adding device through backend
-      await api.post('/devices/register', formData);
-      onSave();
-    } catch (err) {
-      alert('Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ width: '450px', padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.115rem', fontWeight: 700 }}>Register Management Node</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
-        </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Device Display Name</label>
-            <input 
-              className="search-input" 
-              style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.25rem' }}
-              value={formData.device_name}
-              onChange={e => setFormData({...formData, device_name: e.target.value})}
-              required
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Provision UUID (Unique Identifier)</label>
-            <input 
-              className="search-input" 
-              style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.25rem' }}
-              value={formData.device_uuid}
-              onChange={e => setFormData({...formData, device_uuid: e.target.value})}
-              placeholder="e.g. 550e8400-e29b-41d4-a716..."
-              required
-            />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-             <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Operating System</label>
-                <select 
-                  className="search-input" 
-                  style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.25rem' }}
-                  value={formData.os_type}
-                  onChange={e => setFormData({...formData, os_type: e.target.value})}
-                >
-                   <option value="UBUNTU 22.04">Ubuntu 22.04</option>
-                   <option value="DEBIAN 11">Debian 11</option>
-                   <option value="CENTOS 7">CentOS 7</option>
-                   <option value="WINDOWS SERVER">Windows Server</option>
-                </select>
-             </div>
-             <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Assign to Owner</label>
-                <select 
-                  className="search-input" 
-                  style={{ width: '100%', paddingLeft: '1rem', marginTop: '0.25rem' }}
-                  value={formData.user_id}
-                  onChange={e => setFormData({...formData, user_id: e.target.value})}
-                  required
-                >
-                   <option value="">Select User...</option>
-                   {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-             </div>
-          </div>
-          <button className="btn btn-primary" style={{ marginTop: '1rem', justifyContent: 'center' }} disabled={loading}>
-            {loading ? 'Provisioning...' : 'Add Device Record'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
 
 const AdminDevices = () => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showExplorerModal, setShowExplorerModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -320,10 +249,6 @@ const AdminDevices = () => {
     <div className="main-wrapper">
       <div className="top-bar">
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Registered Devices (VPS)</h1>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-outline"><ShieldCheck size={18} /> Health Check</button>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}><Plus size={18} /> Add New Device</button>
-        </div>
       </div>
 
       <div className="main-content">
@@ -402,12 +327,6 @@ const AdminDevices = () => {
         </div>
       </div>
 
-      {showAddModal && (
-        <DeviceModal 
-          onClose={() => setShowAddModal(false)} 
-          onSave={() => { setShowAddModal(false); fetchDevices(); }} 
-        />
-      )}
 
       {showConfigModal && (
         <DeviceConfigModal 
